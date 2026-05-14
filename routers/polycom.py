@@ -48,6 +48,13 @@ class DeviceUpdate(BaseModel):
     asterisk_ip: str | None = None
     model: str | None = None
 
+    @field_validator("extension_number")
+    @classmethod
+    def validate_ext(cls, v: str | None) -> str | None:
+        if v is not None and v.strip() == "":
+            return None
+        return v
+
     @field_validator("asterisk_ip")
     @classmethod
     def validate_ip(cls, v: str | None) -> str | None:

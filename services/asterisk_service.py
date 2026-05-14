@@ -190,9 +190,13 @@ def get_extension(number: str) -> dict | None:
     if ep is None:
         return None
     auth = pjsip.find(f"auth{number}", "auth")
+    raw_callerid = ep.get("callerid") or ""
+    # Extract display name from "Name <number>" format; fall back to raw value
+    m = re.match(r'^(.*?)\s*<[^>]+>\s*$', raw_callerid)
+    clean_name = m.group(1).strip() if m else raw_callerid
     return {
         "number": number,
-        "name": ep.get("callerid") or "",
+        "name": clean_name,
         "context": ep.get("context") or "from-internal",
         "password": auth.get("password") if auth else None,
         "codecs": [v for k, v in ep.directives if k == "allow"],

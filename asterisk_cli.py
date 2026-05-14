@@ -62,14 +62,19 @@ def parse_pjsip_endpoints_output(lines: list[str]) -> list[dict]:
       Endpoint:  6693/6693                       Not in use    0 of inf
     The state is multi-word so we cannot split on whitespace naively.
     """
+    # Flatten: some AMI responses embed newlines inside a single Output value
+    flat: list[str] = []
+    for l in lines:
+        flat.extend(l.splitlines())
+
     endpoints = []
-    for line in lines:
+    for line in flat:
         stripped = line.strip()
         if not stripped.startswith("Endpoint:"):
             continue
         rest = stripped[len("Endpoint:"):].strip()
-        # Skip the column-header line (contains angle brackets)
-        if "<" in rest:
+        # Skip the column-header line (contains angle brackets) or empty rest
+        if not rest or "<" in rest:
             continue
         # Strip trailing channel count: "N of inf" or "N of N"
         rest = re.sub(r"\s+\d+\s+of\s+\S+\s*$", "", rest).strip()
@@ -77,9 +82,14 @@ def parse_pjsip_endpoints_output(lines: list[str]) -> list[dict]:
         parts = re.split(r"\s{2,}", rest, maxsplit=1)
         ep_name = parts[0].strip().split("/")[0]  # "6693/6693" → "6693"
         raw_state = parts[1].strip() if len(parts) > 1 else "Unknown"
-        state = _PJSIP_STATE_MAP.get(raw_state, raw_state)
+        # Case-insensitive lookup with original case fallback
+        state = _PJSIP_STATE_MAP.get(raw_state) or _PJSIP_STATE_MAP.get(raw_state.lower()) or raw_state
         if ep_name:
             endpoints.append({"endpoint": ep_name, "state": state})
+
+    if flat and not endpoints:
+        logger.warning("parse_pjsip_endpoints_output: %d lines, 0 parsed. First line: %r",
+                       len(flat), flat[0] if flat else "")
     return endpoints
 
 

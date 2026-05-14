@@ -102,7 +102,8 @@ async function openDeviceForm(device = null) {
   const isEdit = !!device;
   // Use extension_number (SIP string) for comparison, not extension_id (DB int)
   const currentExt = device?.extension_number || null;
-  const extOptions = extensions.map(e =>
+  const placeholder = `<option value="" disabled ${currentExt ? '' : 'selected'}>— Select extension —</option>`;
+  const extOptions = placeholder + extensions.map(e =>
     `<option value="${escapeHtml(e.number)}" ${currentExt === e.number ? 'selected' : ''}>${escapeHtml(e.number)} — ${escapeHtml(e.name || '')}</option>`
   ).join('');
 
@@ -136,6 +137,7 @@ async function openDeviceForm(device = null) {
       const astip = document.getElementById('f-astip').value.trim() || null;
 
       if (!validateMAC(mac)) throw new Error('Invalid MAC address');
+      if (!ext) throw new Error('Please select an extension');
       if (astip && !validateIP(astip)) throw new Error('Invalid IP address');
 
       if (isEdit) {

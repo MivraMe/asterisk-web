@@ -158,7 +158,6 @@ async def update_device(mac: str, **kwargs) -> dict:
                 select(Extension).where(Extension.number == extension_number)
             )).scalar_one_or_none()
             device.extension_id = ext_row.id if ext_row else None
-            device.config_json = json.dumps({"extension_number": extension_number})
         else:
             # resolve current extension_number from config_json first, then DB FK
             if device.config_json:
@@ -171,6 +170,10 @@ async def update_device(mac: str, **kwargs) -> dict:
                     select(Extension).where(Extension.id == device.extension_id)
                 )).scalar_one_or_none()
                 extension_number = ext_row.number if ext_row else ""
+
+        # Always persist extension_number to config_json so it survives without a DB join
+        if extension_number:
+            device.config_json = json.dumps({"extension_number": extension_number})
 
         if "asterisk_ip" in kwargs:
             device.asterisk_ip = kwargs["asterisk_ip"]

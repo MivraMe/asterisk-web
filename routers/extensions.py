@@ -1,3 +1,4 @@
+import logging
 import re
 from typing import Any
 
@@ -40,17 +41,27 @@ class ExtensionUpdate(BaseModel):
     transport: str | None = None
 
 
+logger = logging.getLogger(__name__)
+
+
 async def _get_live_endpoint_states() -> dict[str, str]:
     """Try AMI Command first (works even when Asterisk is remote), fall back to local CLI."""
     try:
         lines = await ami.send_command("pjsip show endpoints")
-        return {e["endpoint"]: e["state"] for e in parse_pjsip_endpoints_output(lines)}
-    except Exception:
-        pass
+        result = {e["endpoint"]: e["state"] for e in parse_pjsip_endpoints_output(lines)}
+        if result:
+            return result
+        logger.warning("AMI pjsip show endpoints returned %d lines but parsed 0 endpoints", len(lines))
+    except Exception as exc:
+        logger.warning("AMI pjsip show endpoints failed: %s", exc)
     try:
-        return {e["endpoint"]: e["state"] for e in await pjsip_show_endpoints()}
-    except Exception:
-        return {}
+        result = {e["endpoint"]: e["state"] for e in await pjsip_show_endpoints()}
+        if result:
+            return result
+        logger.warning("Local pjsip show endpoints also parsed 0 endpoints")
+    except Exception as exc:
+        logger.warning("Local pjsip show endpoints failed: %s", exc)
+    return {}
 
 
 async def _audit(msg: str, module: str = "extensions") -> None:
