@@ -78,7 +78,13 @@ app.add_middleware(
 # logs to the provisioning server; silently accept so they don't show "provision fail".
 @app.api_route("/polycom/{path:path}", methods=["PUT", "POST", "DELETE"], include_in_schema=False)
 async def polycom_phone_upload(path: str, request: Request) -> Response:
-    await request.body()  # consume and discard
+    body = await request.body()
+    if body and path.endswith((".log", ".cfg")):
+        log_path = Path(settings.polycom_cfg_dir) / path
+        try:
+            log_path.write_bytes(body)
+        except Exception:
+            pass
     return Response(status_code=200)
 
 # Mount Polycom config directory so phones can fetch their configs
