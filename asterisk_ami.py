@@ -167,13 +167,10 @@ class AsteriskAMI:
 
                 elif "Output" in block:
                     # Additional output block for a Command action (split response).
-                    # Asterisk 21 AMI omits ActionID from output-only blocks, so if
-                    # action_id is absent but there is exactly one waiting command,
-                    # attribute the output to it (commands are always serial).
-                    target_id = action_id
-                    if not target_id and len(command_resps) == 1:
-                        target_id = next(iter(command_resps))
-                        logger.debug("AMI Output block has no ActionID; attributing to %s", target_id)
+                    # Asterisk 21 AMI omits ActionID from output-only blocks. Commands
+                    # are processed serially, so the oldest entry in command_resps is
+                    # always the one currently receiving output.
+                    target_id = action_id or (next(iter(command_resps)) if command_resps else "")
                     if target_id:
                         command_bufs.setdefault(target_id, []).extend(block["Output"])
                         if ("--END COMMAND--" in command_bufs[target_id]
