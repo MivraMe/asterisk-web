@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Asterisk Manager</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+
+<div id="app">
+
+  <!-- Header -->
+  <header id="header">
+    <button id="sidebar-toggle" title="Toggle sidebar">☰</button>
+    <h1>★ ASTERISK MANAGER</h1>
+    <div class="header-status">
+      <div id="ami-status">
+        <span id="ami-dot"></span>
+        <span id="ami-label">AMI Offline</span>
+      </div>
+      <span id="header-clock"></span>
+    </div>
+  </header>
+
+  <!-- Sidebar -->
+  <aside id="sidebar">
+    <nav>
+      <ul>
+        <li><a href="#dashboard" class="active">
+          <span class="icon">◈</span>
+          <span class="label">Dashboard</span>
+        </a></li>
+        <li><a href="#extensions">
+          <span class="icon">☎</span>
+          <span class="label">Extensions</span>
+        </a></li>
+        <li><a href="#polycom">
+          <span class="icon">📱</span>
+          <span class="label">Polycom</span>
+        </a></li>
+        <li><a href="#calls">
+          <span class="icon">⚡</span>
+          <span class="label">Appels actifs</span>
+        </a></li>
+        <li><a href="#routing">
+          <span class="icon">⇒</span>
+          <span class="label">Routage</span>
+        </a></li>
+        <li><a href="#features">
+          <span class="icon">#</span>
+          <span class="label">Codes/Features</span>
+        </a></li>
+        <li><a href="#cdr">
+          <span class="icon">📋</span>
+          <span class="label">Historique CDR</span>
+        </a></li>
+        <li><a href="#monitoring">
+          <span class="icon">📡</span>
+          <span class="label">Monitoring</span>
+        </a></li>
+        <li><a href="#config">
+          <span class="icon">⚙</span>
+          <span class="label">Configuration</span>
+        </a></li>
+      </ul>
+    </nav>
+    <div id="sidebar-footer">
+      <div>petite-etoile · 192.168.0.107</div>
+      <div>Asterisk Manager v1.0</div>
+    </div>
+  </aside>
+
+  <!-- Main content area -->
+  <main id="main">
+    <div id="content"></div>
+  </main>
+
+</div>
+
+<!-- Toast container -->
+<div id="toast-container"></div>
+
+<!-- Shared modal -->
+<div class="modal-overlay" id="modal-overlay">
+  <div class="modal">
+    <div class="modal-header">
+      <span id="modal-title">Confirm</span>
+      <button class="btn btn-icon" id="modal-cancel" style="font-size:18px">×</button>
+    </div>
+    <div class="modal-body" id="modal-body"></div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" id="modal-cancel-bottom">Cancel</button>
+      <button class="btn btn-primary" id="modal-confirm">Confirm</button>
+    </div>
+  </div>
+</div>
+
+<script type="module" src="/static/js/app.js"></script>
+<script>
+  // Wire up second cancel button in modal footer
+  document.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('modal-cancel-bottom').addEventListener('click', () => {
+      document.getElementById('modal-overlay').classList.remove('open');
+    });
+  });
+</script>
+</body>
+</html>

@@ -1,0 +1,36 @@
+version: "3.9"
+
+services:
+  asterisk-web:
+    build: .
+    container_name: asterisk-web
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      - AMI_HOST=${AMI_HOST:-192.168.0.107}
+      - AMI_PORT=${AMI_PORT:-5038}
+      - AMI_USERNAME=${AMI_USERNAME:-manager}
+      - AMI_SECRET=${AMI_SECRET}
+      - ASTERISK_IP=${ASTERISK_IP:-192.168.0.107}
+      - PJSIP_CONF=${PJSIP_CONF:-/etc/asterisk/pjsip.conf}
+      - EXTENSIONS_CONF=${EXTENSIONS_CONF:-/etc/asterisk/extensions.conf}
+      - FEATURES_CONF=${FEATURES_CONF:-/etc/asterisk/features.conf}
+      - POLYCOM_CFG_DIR=${POLYCOM_CFG_DIR:-/var/www/html/polycom}
+      - DATABASE_URL=sqlite+aiosqlite:////data/asterisk_web.db
+      - BACKUP_DIR=/data/backups
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    volumes:
+      - /etc/asterisk:/etc/asterisk:rw
+      - /var/www/html/polycom:/var/www/html/polycom:rw
+      - asterisk_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  asterisk_data:
+    driver: local
