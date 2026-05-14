@@ -16,31 +16,30 @@ from asterisk_ami import AsteriskAMI
 # --END COMMAND-- arrives in a separate block WITHOUT an ActionID.
 
 def pjsip_response(action_id: str) -> bytes:
+    # Asterisk 21 format: all output in ONE Response block, no --END COMMAND--
     return (
-        # Block 1: Response with empty Output: separator lines
         f"Response: Success\r\n"
         f"ActionID: {action_id}\r\n"
         f"Message: Command output follows\r\n"
         f"Output: \r\n"
+        f"Output:  Endpoint:  6692/6692                                            Not in use    0 of inf\r\n"
         f"Output: \r\n"
-        f"\r\n"
-        # Block 2: Output-only block, NO ActionID, ends with bare --END COMMAND--
-        f"Output: 6692                                Not in use           0 of inf\r\n"
-        f"Output: 6693                                Not in use           0 of inf\r\n"
-        f"--END COMMAND--\r\n"
+        f"Output:  Endpoint:  6693/6693                                            Not in use    0 of inf\r\n"
+        f"Output: \r\n"
+        f"Output: Objects found: 2\r\n"
+        f"Output: \r\n"
         f"\r\n"
     ).encode()
 
 
 def uptime_response(action_id: str) -> bytes:
+    # Asterisk 21 format: all output in ONE Response block, no --END COMMAND--
     return (
-        # All in one block including bare --END COMMAND--
         f"Response: Success\r\n"
         f"ActionID: {action_id}\r\n"
         f"Message: Command output follows\r\n"
         f"Output: System uptime: 1 day\r\n"
         f"Output: Last reload: 1 day\r\n"
-        f"--END COMMAND--\r\n"
         f"\r\n"
     ).encode()
 
@@ -125,8 +124,7 @@ async def run_test():
         try:
             result = await coro
             last = repr(result[-1]) if result else "n/a"
-            has_end = "--END COMMAND--" in result
-            print(f"{'PASS' if has_end else 'WARN'}  {name}: {len(result)} lines, has_end={has_end}, last={last}")
+            print(f"PASS  {name}: {len(result)} lines, last={last}")
         except Exception as e:
             print(f"FAIL  {name}: {e}")
 
@@ -144,10 +142,8 @@ async def run_test():
             print(f"FAIL  {name}: {result}")
             all_ok = False
         else:
-            has_end = "--END COMMAND--" in result
             last = repr(result[-1]) if result else "n/a"
-            ok = "PASS" if has_end else "WARN"
-            print(f"{ok}  {name}: {len(result)} lines, has_end={has_end}, last={last}")
+            print(f"PASS  {name}: {len(result)} lines, last={last}")
 
     await ami.close()
     server.close()

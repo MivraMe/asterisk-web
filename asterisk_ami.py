@@ -114,7 +114,6 @@ class AsteriskAMI:
             if not raw:
                 raise ConnectionResetError("AMI EOF")
             line = raw.decode(errors="replace").rstrip("\r\n")
-            logger.info("AMI RAW %r", raw[:120])
             if line == "":
                 if lines:
                     return self._parse_block(lines)
@@ -148,47 +147,20 @@ class AsteriskAMI:
                     await self._dispatch_event(block)
 
                 if "Response" in block and action_id in self._pending:
-                    # Merge any Output lines buffered before this Response arrived
-                    out = self._command_bufs.pop(action_id, []) + block.get("Output", [])
-
-                    if (block.get("Message") == "Command output follows"
-                            and "--END COMMAND--" not in out):
-                        # Command response received but output not yet complete — wait
-                        self._command_resps[action_id] = block
-                        self._command_bufs[action_id] = out
-                    else:
-                        # Non-command response OR all output already present
-                        block["Output"] = out
-                        self._command_resps.pop(action_id, None)
-                        fut = self._pending.pop(action_id)
-                        if not fut.done():
-                            fut.set_result(block)
+                    # Asterisk 21: the complete output is already in this Response block.
+                    # Merge any buffered output (shouldn't normally exist) and resolve.
+                    block["Output"] = self._command_bufs.pop(action_id, []) + block.get("Output", [])
+                    self._command_resps.pop(action_id, None)
+                    fut = self._pending.pop(action_id)
+                    if not fut.done():
+                        fut.set_result(block)
 
                 elif "Output" in block:
-                    # Additional output block for a Command action (split response).
-                    # Asterisk 21 AMI omits ActionID from output-only blocks. Commands
-                    # are serial, so the oldest still-pending entry in _command_resps
-                    # is the correct target. Skip any that already timed out.
-                    stale = [aid for aid in self._command_resps if aid not in self._pending]
-                    for aid in stale:
-                        self._command_resps.pop(aid, None)
-                        self._command_bufs.pop(aid, None)
-                    target_id = action_id or next(
-                        (aid for aid in self._command_resps if aid in self._pending), ""
-                    )
+                    # Output-only block arriving before its Response (older Asterisk
+                    # split-response format). Buffer it for when the Response arrives.
+                    target_id = action_id or next(iter(self._pending), "")
                     if target_id:
                         self._command_bufs.setdefault(target_id, []).extend(block["Output"])
-                        if ("--END COMMAND--" in self._command_bufs[target_id]
-                                and target_id in self._command_resps
-                                and target_id in self._pending):
-                            resp = self._command_resps.pop(target_id)
-                            resp["Output"] = self._command_bufs.pop(target_id)
-                            fut = self._pending.pop(target_id)
-                            if not fut.done():
-                                fut.set_result(resp)
-                    else:
-                        logger.debug("AMI Output block with no active command: %s",
-                                     block.get("Output", [])[:2])
 
         except (ConnectionResetError, asyncio.IncompleteReadError, OSError) as exc:
             logger.warning("AMI read loop ended: %s", exc)
