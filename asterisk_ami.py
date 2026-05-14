@@ -162,18 +162,25 @@ class AsteriskAMI:
                         if not fut.done():
                             fut.set_result(block)
 
-                elif "Output" in block and action_id:
-                    # Additional output block for a Command action (split response)
-                    command_bufs.setdefault(action_id, []).extend(block["Output"])
-                    # Resolve when --END COMMAND-- is received
-                    if ("--END COMMAND--" in command_bufs[action_id]
-                            and action_id in command_resps
-                            and action_id in self._pending):
-                        resp = command_resps.pop(action_id)
-                        resp["Output"] = command_bufs.pop(action_id)
-                        fut = self._pending.pop(action_id)
-                        if not fut.done():
-                            fut.set_result(resp)
+                elif "Output" in block:
+                    # Additional output block for a Command action (split response).
+                    # Asterisk 21 AMI omits ActionID from output-only blocks, so if
+                    # action_id is absent but there is exactly one waiting command,
+                    # attribute the output to it (commands are always serial).
+                    target_id = action_id
+                    if not target_id and len(command_resps) == 1:
+                        target_id = next(iter(command_resps))
+                        logger.debug("AMI Output block has no ActionID; attributing to %s", target_id)
+                    if target_id:
+                        command_bufs.setdefault(target_id, []).extend(block["Output"])
+                        if ("--END COMMAND--" in command_bufs[target_id]
+                                and target_id in command_resps
+                                and target_id in self._pending):
+                            resp = command_resps.pop(target_id)
+                            resp["Output"] = command_bufs.pop(target_id)
+                            fut = self._pending.pop(target_id)
+                            if not fut.done():
+                                fut.set_result(resp)
 
         except (ConnectionResetError, asyncio.IncompleteReadError, OSError) as exc:
             logger.warning("AMI read loop ended: %s", exc)
