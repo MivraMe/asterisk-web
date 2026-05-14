@@ -23,6 +23,8 @@ class AsteriskAMI:
         self._reader: asyncio.StreamReader | None = None
         self._writer: asyncio.StreamWriter | None = None
         self._pending: dict[str, asyncio.Future[dict]] = {}
+        self._command_resps: dict[str, dict] = {}   # saved Response block per ActionID
+        self._command_bufs: dict[str, list[str]] = {}  # accumulated Output lines per ActionID
         self._event_subscribers: list[asyncio.Queue] = []
         self._connected = asyncio.Event()
         self._lock = asyncio.Lock()
@@ -136,10 +138,6 @@ class AsteriskAMI:
 
     async def _read_loop(self) -> None:
         """Continuously read blocks and dispatch responses/events."""
-        # Buffers for Command actions that arrive as multiple AMI blocks.
-        # Asterisk 18+ sends: Block1={Response+Message} then Block2={Output lines}
-        command_bufs: dict[str, list[str]] = {}   # accumulated Output lines per ActionID
-        command_resps: dict[str, dict] = {}        # saved Response block per ActionID
         try:
             while self._connected.is_set():
                 block = await self._read_block()
@@ -150,17 +148,17 @@ class AsteriskAMI:
 
                 if "Response" in block and action_id in self._pending:
                     # Merge any Output lines buffered before this Response arrived
-                    out = command_bufs.pop(action_id, []) + block.get("Output", [])
+                    out = self._command_bufs.pop(action_id, []) + block.get("Output", [])
 
                     if (block.get("Message") == "Command output follows"
                             and "--END COMMAND--" not in out):
                         # Command response received but output not yet complete — wait
-                        command_resps[action_id] = block
-                        command_bufs[action_id] = out
+                        self._command_resps[action_id] = block
+                        self._command_bufs[action_id] = out
                     else:
                         # Non-command response OR all output already present
                         block["Output"] = out
-                        command_resps.pop(action_id, None)
+                        self._command_resps.pop(action_id, None)
                         fut = self._pending.pop(action_id)
                         if not fut.done():
                             fut.set_result(block)
@@ -168,19 +166,28 @@ class AsteriskAMI:
                 elif "Output" in block:
                     # Additional output block for a Command action (split response).
                     # Asterisk 21 AMI omits ActionID from output-only blocks. Commands
-                    # are processed serially, so the oldest entry in command_resps is
-                    # always the one currently receiving output.
-                    target_id = action_id or (next(iter(command_resps)) if command_resps else "")
+                    # are serial, so the oldest still-pending entry in _command_resps
+                    # is the correct target. Skip any that already timed out.
+                    stale = [aid for aid in self._command_resps if aid not in self._pending]
+                    for aid in stale:
+                        self._command_resps.pop(aid, None)
+                        self._command_bufs.pop(aid, None)
+                    target_id = action_id or next(
+                        (aid for aid in self._command_resps if aid in self._pending), ""
+                    )
                     if target_id:
-                        command_bufs.setdefault(target_id, []).extend(block["Output"])
-                        if ("--END COMMAND--" in command_bufs[target_id]
-                                and target_id in command_resps
+                        self._command_bufs.setdefault(target_id, []).extend(block["Output"])
+                        if ("--END COMMAND--" in self._command_bufs[target_id]
+                                and target_id in self._command_resps
                                 and target_id in self._pending):
-                            resp = command_resps.pop(target_id)
-                            resp["Output"] = command_bufs.pop(target_id)
+                            resp = self._command_resps.pop(target_id)
+                            resp["Output"] = self._command_bufs.pop(target_id)
                             fut = self._pending.pop(target_id)
                             if not fut.done():
                                 fut.set_result(resp)
+                    else:
+                        logger.debug("AMI Output block with no active command: %s",
+                                     block.get("Output", [])[:2])
 
         except (ConnectionResetError, asyncio.IncompleteReadError, OSError) as exc:
             logger.warning("AMI read loop ended: %s", exc)
@@ -191,6 +198,8 @@ class AsteriskAMI:
                 if not fut.done():
                     fut.set_exception(ConnectionError("AMI disconnected"))
             self._pending.clear()
+            self._command_resps.clear()
+            self._command_bufs.clear()
 
     async def _dispatch_event(self, event: dict) -> None:
         dead: list[asyncio.Queue] = []
@@ -228,6 +237,8 @@ class AsteriskAMI:
             return await asyncio.wait_for(fut, timeout=timeout)
         except asyncio.TimeoutError:
             self._pending.pop(action_id, None)
+            self._command_resps.pop(action_id, None)
+            self._command_bufs.pop(action_id, None)
             raise TimeoutError(f"AMI action timed out: {action.get('Action')}")
 
     async def subscribe(self) -> asyncio.Queue:
