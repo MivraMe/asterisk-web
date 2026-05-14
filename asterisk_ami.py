@@ -186,7 +186,8 @@ class AsteriskAMI:
 
     async def send_action(self, action: dict[str, str], timeout: float = 10.0) -> dict:
         """Send an AMI action dict; returns the response dict."""
-        await self._connected.wait()
+        if not self._connected.is_set():
+            raise ConnectionError("AMI not connected")
         action_id = str(uuid.uuid4())
         action["ActionID"] = action_id
 
@@ -235,6 +236,11 @@ class AsteriskAMI:
             "Priority": "1",
             "Async": "true",
         })
+
+    async def send_command(self, cmd: str) -> list[str]:
+        """Send a CLI command via AMI Command action. Returns output lines."""
+        resp = await self.send_action({"Action": "Command", "Command": cmd})
+        return resp.get("Output", [])
 
     async def pjsip_reload(self) -> dict:
         return await self.send_action({"Action": "Command", "Command": "pjsip reload"})

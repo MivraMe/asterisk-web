@@ -121,12 +121,25 @@ export function formatDuration(seconds) {
 
 export function badgeHtml(text, variant) {
   const variantMap = {
-    Up: 'badge-up', up: 'badge-up',
-    Unavailable: 'badge-unavailable', unavailable: 'badge-unavailable',
-    Unknown: 'badge-unknown', unknown: 'badge-unknown',
-    ok: 'badge-ok', active: 'badge-active',
-    error: 'badge-error', pending: 'badge-pending',
-    completed: 'badge-ok', failed: 'badge-error',
+    // Asterisk PJSIP states (normalized by CLI parser)
+    Available: 'badge-ok',
+    'In Use': 'badge-active',
+    'On Hold': 'badge-warning',
+    Ringing: 'badge-info',
+    Unavailable: 'badge-unavailable',
+    Unknown: 'badge-unknown',
+    // Legacy / raw Asterisk states (fallback)
+    Up: 'badge-ok', up: 'badge-ok',
+    unavailable: 'badge-unavailable',
+    unknown: 'badge-unknown',
+    // App-level statuses
+    ok: 'badge-ok',
+    orphan: 'badge-warning',
+    active: 'badge-active',
+    error: 'badge-error',
+    pending: 'badge-pending',
+    completed: 'badge-ok',
+    failed: 'badge-error',
   };
   const cls = variantMap[text] || variantMap[variant] || 'badge-pending';
   return `<span class="badge ${cls}">${escapeHtml(text)}</span>`;

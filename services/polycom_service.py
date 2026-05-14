@@ -5,6 +5,7 @@ import logging
 from datetime import datetime
 
 from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 
 from database import AsyncSessionLocal
 from models import Extension, Log, PolycomDevice
@@ -29,15 +30,42 @@ async def _audit(msg: str) -> None:
 
 
 async def get_all_devices() -> list[dict]:
-    """Return all devices from DB, enriched with file-system presence."""
+    """Return all devices from DB + orphaned .cfg files not tracked in DB."""
     async with AsyncSessionLocal() as db:
-        rows = (await db.execute(select(PolycomDevice))).scalars().all()
+        rows = (await db.execute(
+            select(PolycomDevice).options(selectinload(PolycomDevice.extension))
+        )).scalars().all()
+
+    db_macs = {row.mac_address for row in rows}
     file_macs = set(list_device_macs())
+
     result = []
     for row in rows:
         d = _device_to_dict(row)
+        d["extension_number"] = row.extension.number if row.extension else None
         d["file_exists"] = row.mac_address in file_macs
         result.append(d)
+
+    # Surface .cfg files that exist on disk but have no DB entry
+    for mac in file_macs - db_macs:
+        result.append({
+            "id": None,
+            "mac_address": mac,
+            "extension_id": None,
+            "extension_number": None,
+            "model": "Unknown",
+            "firmware": None,
+            "ip_address": None,
+            "asterisk_ip": None,
+            "config_file_path": None,
+            "last_provision": None,
+            "last_reboot": None,
+            "provisioning_status": "orphan",
+            "error_msg": "Config file exists but device not in database",
+            "created_at": None,
+            "file_exists": True,
+        })
+
     return result
 
 
@@ -45,11 +73,14 @@ async def get_device(mac: str) -> dict | None:
     mac = normalize_mac(mac)
     async with AsyncSessionLocal() as db:
         row = (await db.execute(
-            select(PolycomDevice).where(PolycomDevice.mac_address == mac)
+            select(PolycomDevice)
+            .where(PolycomDevice.mac_address == mac)
+            .options(selectinload(PolycomDevice.extension))
         )).scalar_one_or_none()
     if row is None:
         return None
     d = _device_to_dict(row)
+    d["extension_number"] = row.extension.number if row.extension else None
     d["file_exists"] = (await _file_exists(mac))
     return d
 

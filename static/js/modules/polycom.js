@@ -61,21 +61,26 @@ function renderDeviceTable(devices) {
   const tbody = document.getElementById('poly-tbody');
   if (!tbody) return;
   if (!devices.length) { tbody.innerHTML = renderEmpty('No devices provisioned', 7); return; }
-  tbody.innerHTML = devices.map(d => `
-    <tr data-search="${escapeHtml((d.mac_address + ' ' + (d.extension_id || '')).toLowerCase())}">
+  tbody.innerHTML = devices.map(d => {
+    const extLabel = d.extension_number || (d.extension_id ? String(d.extension_id) : '—');
+    const editBtn = d.provisioning_status === 'orphan'
+      ? `<button class="btn btn-icon btn-sm btn-secondary" onclick="window._polyAdopt('${escapeHtml(d.mac_address)}')" title="Add to database">➕</button>`
+      : `<button class="btn btn-icon btn-sm" onclick="window._polyEdit('${escapeHtml(d.mac_address)}')">✏</button>`;
+    return `
+    <tr data-search="${escapeHtml((d.mac_address + ' ' + extLabel).toLowerCase())}">
       <td><code>${escapeHtml(formatMAC(d.mac_address))}</code></td>
-      <td>${escapeHtml(String(d.extension_id || '—'))}</td>
+      <td>${escapeHtml(extLabel)}</td>
       <td>${escapeHtml(d.model || '—')}</td>
       <td><code>${escapeHtml(d.asterisk_ip || '—')}</code></td>
       <td>${badgeHtml(d.provisioning_status || 'unknown', d.provisioning_status)}</td>
       <td style="font-size:11px">${formatDateTime(d.last_provision)}</td>
       <td style="white-space:nowrap">
-        <button class="btn btn-icon btn-sm" onclick="window._polyEdit('${escapeHtml(d.mac_address)}')">✏</button>
+        ${editBtn}
         <button class="btn btn-icon btn-sm" style="color:var(--color-danger)" onclick="window._polyDelete('${escapeHtml(d.mac_address)}')">🗑</button>
         <a class="btn btn-icon btn-sm" href="/polycom/${escapeHtml(d.mac_address)}.cfg" target="_blank" title="View config">📄</a>
       </td>
-    </tr>
-  `).join('');
+    </tr>`;
+  }).join('');
 }
 
 function filterTable() {
@@ -95,8 +100,10 @@ async function openDeviceForm(device = null) {
   try { extensions = await apiFetch('/api/extensions/'); } catch (_) {}
 
   const isEdit = !!device;
+  // Use extension_number (SIP string) for comparison, not extension_id (DB int)
+  const currentExt = device?.extension_number || null;
   const extOptions = extensions.map(e =>
-    `<option value="${escapeHtml(e.number)}" ${device?.extension_id == e.number ? 'selected' : ''}>${escapeHtml(e.number)} — ${escapeHtml(e.name || '')}</option>`
+    `<option value="${escapeHtml(e.number)}" ${currentExt === e.number ? 'selected' : ''}>${escapeHtml(e.number)} — ${escapeHtml(e.name || '')}</option>`
   ).join('');
 
   const bodyHTML = `
@@ -154,6 +161,11 @@ window._polyEdit = async (mac) => {
     const d = await apiFetch(`/api/polycom/devices/${mac}`);
     openDeviceForm(d);
   } catch (e) { showToast(e.message, 'error'); }
+};
+
+// Open the Add form pre-filled with the orphan MAC so the user can assign an extension
+window._polyAdopt = (mac) => {
+  openDeviceForm({ mac_address: mac, model: 'VVX250', asterisk_ip: '', extension_number: null });
 };
 
 window._polyDelete = (mac) => {

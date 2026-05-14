@@ -5,7 +5,7 @@ from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, field_validator
 
 from asterisk_ami import ami
-from asterisk_cli import pjsip_show_endpoints
+from asterisk_cli import parse_pjsip_endpoints_output, pjsip_show_endpoints
 from database import AsyncSessionLocal
 from models import Extension, Log
 from services.asterisk_service import (
@@ -40,6 +40,19 @@ class ExtensionUpdate(BaseModel):
     transport: str | None = None
 
 
+async def _get_live_endpoint_states() -> dict[str, str]:
+    """Try AMI Command first (works even when Asterisk is remote), fall back to local CLI."""
+    try:
+        lines = await ami.send_command("pjsip show endpoints")
+        return {e["endpoint"]: e["state"] for e in parse_pjsip_endpoints_output(lines)}
+    except Exception:
+        pass
+    try:
+        return {e["endpoint"]: e["state"] for e in await pjsip_show_endpoints()}
+    except Exception:
+        return {}
+
+
 async def _audit(msg: str, module: str = "extensions") -> None:
     async with AsyncSessionLocal() as db:
         db.add(Log(level="INFO", message=msg, module=module))
@@ -49,12 +62,7 @@ async def _audit(msg: str, module: str = "extensions") -> None:
 @router.get("/", summary="List all PJSIP endpoints")
 async def list_eps() -> list[dict]:
     file_exts = list_extensions()
-    try:
-        live = await pjsip_show_endpoints()
-        live_map = {e["endpoint"]: e["state"] for e in live}
-    except Exception:
-        live_map = {}
-
+    live_map = await _get_live_endpoint_states()
     for ext in file_exts:
         ext["state"] = live_map.get(ext["number"], "Unknown")
     return file_exts
@@ -65,12 +73,8 @@ async def get_ep(number: str) -> dict:
     ext = get_extension(number)
     if ext is None:
         raise HTTPException(status_code=404, detail=f"Extension {number} not found")
-    try:
-        live = await pjsip_show_endpoints()
-        live_map = {e["endpoint"]: e["state"] for e in live}
-        ext["state"] = live_map.get(number, "Unknown")
-    except Exception:
-        ext["state"] = "Unknown"
+    live_map = await _get_live_endpoint_states()
+    ext["state"] = live_map.get(number, "Unknown")
     return ext
 
 
