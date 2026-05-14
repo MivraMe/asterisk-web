@@ -121,7 +121,10 @@ class AsteriskAMI:
     def _parse_block(self, lines: list[str]) -> dict[str, Any]:
         block: dict[str, Any] = {}
         for line in lines:
-            if ": " in line:
+            if line == "--END COMMAND--":
+                # Asterisk 21 sends this as a bare line, not prefixed with "Output: "
+                block.setdefault("Output", []).append("--END COMMAND--")
+            elif ": " in line:
                 key, _, val = line.partition(": ")
                 if key == "Output":
                     block.setdefault("Output", []).append(val)
@@ -144,17 +147,6 @@ class AsteriskAMI:
 
                 if "Event" in block:
                     await self._dispatch_event(block)
-
-                # Temporary diagnostics: log every non-event block
-                if not ("Event" in block and len(block) <= 3):
-                    has_end = "--END COMMAND--" in block.get("Output", [])
-                    logger.info("AMI block keys=%s action_id=%r pending_cnt=%d cmd_resps_cnt=%d has_end=%s out_len=%d",
-                                list(block.keys()), action_id[:8] if action_id else "",
-                                len(self._pending), len(command_resps),
-                                has_end, len(block.get("Output", [])))
-                    if "Output" in block and block["Output"]:
-                        logger.info("AMI Output first=%r last=%r",
-                                    block["Output"][0], block["Output"][-1])
 
                 if "Response" in block and action_id in self._pending:
                     # Merge any Output lines buffered before this Response arrived
