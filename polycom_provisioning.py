@@ -106,6 +106,24 @@ def get_device_config_path(mac: str) -> Path:
 _MASTER_CFG_MAC = "000000000000"  # Polycom master config — not a device
 
 
+def render_master_config() -> str:
+    """Render the 000000000000.cfg bootstrap file content."""
+    tmpl = _jinja_env.get_template("polycom_master.cfg.j2")
+    xml_str = tmpl.render()
+    _validate_xml(xml_str)
+    return xml_str
+
+
+def write_master_config() -> Path:
+    """Write (or overwrite) the Polycom bootstrap file 000000000000.cfg."""
+    xml_str = render_master_config()
+    cfg_dir = Path(settings.polycom_cfg_dir)
+    dest = cfg_dir / f"{_MASTER_CFG_MAC}.cfg"
+    _atomic_write(dest, xml_str)
+    logger.info("Wrote Polycom master bootstrap: %s", dest)
+    return dest
+
+
 def list_device_macs() -> list[str]:
     """Return normalized MAC addresses that have a per-device .cfg file.
     Excludes the master config (000000000000.cfg)."""

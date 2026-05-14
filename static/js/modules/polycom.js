@@ -22,9 +22,9 @@ async function render(container) {
         <div class="table-scroll">
           <table>
             <thead><tr>
-              <th>MAC Address</th><th>Extension</th><th>Model</th><th>Asterisk IP</th><th>Status</th><th>Last Provision</th><th>Actions</th>
+              <th>MAC Address</th><th>Extension</th><th>Model</th><th>Asterisk IP</th><th>Phone IP</th><th>Status</th><th>Last Provision</th><th>Actions</th>
             </tr></thead>
-            <tbody id="poly-tbody">${renderLoading(7)}</tbody>
+            <tbody id="poly-tbody">${renderLoading(8)}</tbody>
           </table>
         </div>
       </div>
@@ -60,22 +60,27 @@ async function loadDevices() {
 function renderDeviceTable(devices) {
   const tbody = document.getElementById('poly-tbody');
   if (!tbody) return;
-  if (!devices.length) { tbody.innerHTML = renderEmpty('No devices provisioned', 7); return; }
+  if (!devices.length) { tbody.innerHTML = renderEmpty('No devices provisioned', 8); return; }
   tbody.innerHTML = devices.map(d => {
     const extLabel = d.extension_number || (d.extension_id ? String(d.extension_id) : '—');
     const editBtn = d.provisioning_status === 'orphan'
       ? `<button class="btn btn-icon btn-sm btn-secondary" onclick="window._polyAdopt('${escapeHtml(d.mac_address)}')" title="Add to database">➕</button>`
       : `<button class="btn btn-icon btn-sm" onclick="window._polyEdit('${escapeHtml(d.mac_address)}')">✏</button>`;
+    const rebootBtn = d.ip_address
+      ? `<button class="btn btn-icon btn-sm" title="Reboot phone" onclick="window._polyReboot('${escapeHtml(d.mac_address)}')">🔃</button>`
+      : `<button class="btn btn-icon btn-sm" title="Set phone IP to enable reboot" disabled style="opacity:.35">🔃</button>`;
     return `
     <tr data-search="${escapeHtml((d.mac_address + ' ' + extLabel).toLowerCase())}">
       <td><code>${escapeHtml(formatMAC(d.mac_address))}</code></td>
       <td>${escapeHtml(extLabel)}</td>
       <td>${escapeHtml(d.model || '—')}</td>
       <td><code>${escapeHtml(d.asterisk_ip || '—')}</code></td>
+      <td><code>${escapeHtml(d.ip_address || '—')}</code></td>
       <td>${badgeHtml(d.provisioning_status || 'unknown', d.provisioning_status)}</td>
       <td style="font-size:11px">${formatDateTime(d.last_provision)}</td>
       <td style="white-space:nowrap">
         ${editBtn}
+        ${rebootBtn}
         <button class="btn btn-icon btn-sm" style="color:var(--color-danger)" onclick="window._polyDelete('${escapeHtml(d.mac_address)}')">🗑</button>
         <a class="btn btn-icon btn-sm" href="/polycom/${escapeHtml(d.mac_address)}.cfg" target="_blank" title="View config">📄</a>
       </td>
@@ -124,6 +129,10 @@ async function openDeviceForm(device = null) {
       <label class="form-label">Asterisk IP (leave blank for default)</label>
       <input id="f-astip" type="text" placeholder="192.168.0.107" value="${escapeHtml(device?.asterisk_ip || '')}">
     </div>
+    <div class="form-group">
+      <label class="form-label">Phone IP (optional — enables remote reboot)</label>
+      <input id="f-phoneip" type="text" placeholder="192.168.0.x" value="${escapeHtml(device?.ip_address || '')}">
+    </div>
   `;
 
   showModal({
@@ -135,15 +144,17 @@ async function openDeviceForm(device = null) {
       const ext = document.getElementById('f-ext').value.trim();
       const model = document.getElementById('f-model').value.trim() || 'VVX250';
       const astip = document.getElementById('f-astip').value.trim() || null;
+      const phoneip = document.getElementById('f-phoneip').value.trim() || null;
 
       if (!validateMAC(mac)) throw new Error('Invalid MAC address');
       if (!ext) throw new Error('Please select an extension');
-      if (astip && !validateIP(astip)) throw new Error('Invalid IP address');
+      if (astip && !validateIP(astip)) throw new Error('Invalid Asterisk IP address');
+      if (phoneip && !validateIP(phoneip)) throw new Error('Invalid phone IP address');
 
       if (isEdit) {
         await apiFetch(`/api/polycom/devices/${mac.replace(/[:\-]/g, '').toLowerCase()}`, {
           method: 'PUT',
-          body: { extension_number: ext, model, asterisk_ip: astip },
+          body: { extension_number: ext, model, asterisk_ip: astip, ip_address: phoneip },
         });
         showToast('Device updated', 'success');
       } else {
@@ -246,9 +257,23 @@ async function openSyncIP() {
   });
 }
 
+window._polyReboot = (mac) => {
+  showModal({
+    title: 'Reboot Phone',
+    bodyHTML: `<p>Send a reboot command to <strong>${escapeHtml(formatMAC(mac))}</strong>?</p><p style="color:var(--color-warning);font-size:12px">The phone will go offline briefly and reload its config.</p>`,
+    confirmLabel: 'Reboot',
+    danger: true,
+    onConfirm: async () => {
+      await apiFetch(`/api/polycom/devices/${mac}/reboot`, { method: 'POST' });
+      showToast('Reboot command sent', 'success');
+    },
+  });
+};
+
 function destroy() {
   delete window._polyEdit;
   delete window._polyDelete;
+  delete window._polyReboot;
 }
 
 export default { render, destroy };

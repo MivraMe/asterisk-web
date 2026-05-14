@@ -33,6 +33,18 @@ async def lifespan(app: FastAPI):
     except Exception as exc:
         logger.warning("Polycom orphan import failed: %s", exc)
 
+    # Ensure Polycom bootstrap (000000000000.cfg) and site.cfg exist
+    try:
+        from polycom_provisioning import render_site_config, write_master_config, write_site_config
+        write_master_config()
+        site_cfg = Path(settings.polycom_cfg_dir) / "site.cfg"
+        if not site_cfg.exists():
+            xml_str = render_site_config(provisioning_ip=settings.asterisk_ip)
+            write_site_config(xml_str)
+            logger.info("Generated default site.cfg")
+    except Exception as exc:
+        logger.warning("Polycom bootstrap init failed: %s", exc)
+
     try:
         await ami.connect()
         asyncio.create_task(ami._reconnect_loop())

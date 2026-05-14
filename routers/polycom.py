@@ -1,9 +1,11 @@
 import ipaddress
 import re
 
+import httpx
 from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, field_validator
 
+from config import settings
 from polycom_provisioning import (
     list_device_macs,
     normalize_mac,
@@ -46,6 +48,7 @@ class DeviceCreate(BaseModel):
 class DeviceUpdate(BaseModel):
     extension_number: str | None = None
     asterisk_ip: str | None = None
+    ip_address: str | None = None
     model: str | None = None
 
     @field_validator("extension_number")
@@ -55,12 +58,13 @@ class DeviceUpdate(BaseModel):
             return None
         return v
 
-    @field_validator("asterisk_ip")
+    @field_validator("asterisk_ip", "ip_address")
     @classmethod
     def validate_ip(cls, v: str | None) -> str | None:
-        if v is not None:
-            ipaddress.ip_address(v)
-        return v
+        if v is not None and v.strip():
+            ipaddress.ip_address(v.strip())
+            return v.strip()
+        return None
 
 
 class SiteConfigUpdate(BaseModel):
@@ -129,6 +133,17 @@ async def update_dev(mac: str, body: DeviceUpdate) -> dict:
         raise HTTPException(status_code=500, detail=str(exc))
 
 
+@router.patch("/devices/{mac}/ip", summary="Set phone IP address (enables reboot)")
+async def set_device_ip(mac: str, body: dict) -> dict:
+    ip = body.get("ip_address", "").strip()
+    if ip:
+        ipaddress.ip_address(ip)
+    try:
+        return await update_device(mac, ip_address=ip or None)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+
+
 @router.delete("/devices/{mac}", summary="Delete device and remove config file")
 async def delete_dev(mac: str) -> dict:
     try:
@@ -138,15 +153,28 @@ async def delete_dev(mac: str) -> dict:
         raise HTTPException(status_code=404, detail=str(exc))
 
 
-@router.post("/devices/{mac}/reboot", summary="Request device reboot (Phase 2 — HTTP POST to phone)")
+@router.post("/devices/{mac}/reboot", summary="Send HTTP reboot command to phone")
 async def reboot_dev(mac: str) -> dict:
     device = await get_device(mac)
     if device is None:
         raise HTTPException(status_code=404, detail=f"Device {mac} not found")
-    if not device.get("ip_address"):
-        raise HTTPException(status_code=422, detail="Device IP address unknown — cannot reboot")
-    # Phase 2: send HTTP POST to phone's built-in web server
-    return {"mac_address": mac, "status": "reboot_not_implemented", "message": "Phase 2 feature"}
+    ip = device.get("ip_address")
+    if not ip:
+        raise HTTPException(status_code=422, detail="Phone IP address not set — edit the device first")
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.post(
+                f"http://{ip}/form-submit/Reboot",
+                auth=httpx.DigestAuth(settings.polycom_admin_user, settings.polycom_admin_password),
+                timeout=5.0,
+            )
+        if resp.status_code not in (200, 302):
+            raise HTTPException(status_code=502, detail=f"Phone returned HTTP {resp.status_code}")
+        return {"mac_address": mac, "status": "rebooting"}
+    except httpx.TimeoutException:
+        raise HTTPException(status_code=504, detail="Phone did not respond (timeout)")
+    except httpx.RequestError as exc:
+        raise HTTPException(status_code=502, detail=f"Cannot reach phone: {exc}")
 
 
 # ------------------------------------------------------------------ #

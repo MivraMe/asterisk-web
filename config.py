@@ -30,6 +30,10 @@ class Settings(BaseSettings):
     # Backup
     backup_dir: str = Field(default="/data/backups", alias="BACKUP_DIR")
 
+    # Polycom phone admin credentials (for HTTP reboot API)
+    polycom_admin_user: str = Field(default="Polycom", alias="POLYCOM_ADMIN_USER")
+    polycom_admin_password: str = Field(default="456", alias="POLYCOM_ADMIN_PASSWORD")
+
     # App
     http_port: int = Field(default=8080, alias="HTTP_PORT")
     log_level: str = Field(default="INFO", alias="LOG_LEVEL")

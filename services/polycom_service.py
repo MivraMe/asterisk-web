@@ -179,6 +179,8 @@ async def update_device(mac: str, **kwargs) -> dict:
             device.asterisk_ip = kwargs["asterisk_ip"]
         if "model" in kwargs:
             device.model = kwargs["model"]
+        if "ip_address" in kwargs:
+            device.ip_address = kwargs["ip_address"]
 
         # pjsip.conf is the source of truth for SIP credentials
         pjsip_ext = get_pjsip_extension(extension_number) if extension_number else None
