@@ -114,6 +114,7 @@ class AsteriskAMI:
             if not raw:
                 raise ConnectionResetError("AMI EOF")
             line = raw.decode(errors="replace").rstrip("\r\n")
+            logger.info("AMI RAW %r", raw[:120])
             if line == "":
                 if lines:
                     return self._parse_block(lines)
