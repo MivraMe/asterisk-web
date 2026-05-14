@@ -193,7 +193,7 @@ def get_extension(number: str) -> dict | None:
     raw_callerid = ep.get("callerid") or ""
     # Extract display name from "Name <number>" format; fall back to raw value
     m = re.match(r'^(.*?)\s*<[^>]+>\s*$', raw_callerid)
-    clean_name = m.group(1).strip() if m else raw_callerid
+    clean_name = m.group(1).strip().strip('"') if m else raw_callerid
     return {
         "number": number,
         "name": clean_name,

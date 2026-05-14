@@ -52,7 +52,6 @@ async def get_all_devices() -> list[dict]:
     result = []
     for row in rows:
         d = _device_to_dict(row)
-        d["extension_number"] = row.extension.number if row.extension else None
         d["file_exists"] = row.mac_address in file_macs
         result.append(d)
 
@@ -90,7 +89,6 @@ async def get_device(mac: str) -> dict | None:
     if row is None:
         return None
     d = _device_to_dict(row)
-    d["extension_number"] = row.extension.number if row.extension else None
     d["file_exists"] = (await _file_exists(mac))
     return d
 
