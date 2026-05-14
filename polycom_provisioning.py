@@ -103,17 +103,39 @@ def get_device_config_path(mac: str) -> Path:
     return Path(settings.polycom_cfg_dir) / f"{normalize_mac(mac)}.cfg"
 
 
+_MASTER_CFG_MAC = "000000000000"  # Polycom master config — not a device
+
+
 def list_device_macs() -> list[str]:
-    """Return list of normalized MAC addresses that have a .cfg file."""
+    """Return normalized MAC addresses that have a per-device .cfg file.
+    Excludes the master config (000000000000.cfg)."""
     cfg_dir = Path(settings.polycom_cfg_dir)
     if not cfg_dir.exists():
         return []
     macs = []
     for f in cfg_dir.glob("*.cfg"):
         stem = f.stem
-        if re.fullmatch(r"[0-9a-f]{12}", stem):
+        if re.fullmatch(r"[0-9a-f]{12}", stem) and stem != _MASTER_CFG_MAC:
             macs.append(stem)
     return sorted(macs)
+
+
+def read_extension_from_device_cfg(mac: str) -> str | None:
+    """Parse a Polycom per-device .cfg file and return the SIP extension number."""
+    path = get_device_config_path(mac)
+    if not path.exists():
+        return None
+    try:
+        tree = ET.parse(path)
+        root = tree.getroot()
+        for elem in root.iter():
+            # Our template writes reg.1.address as the extension number
+            addr = elem.get("reg.1.address")
+            if addr:
+                return addr.strip()
+    except ET.ParseError:
+        pass
+    return None
 
 
 def render_site_config(

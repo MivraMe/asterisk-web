@@ -83,12 +83,10 @@ async function render(container) {
 
   window._diagRun = async (cmd) => {
     const out = document.getElementById('diag-output');
-    out.textContent = 'Running…';
+    out.textContent = `Running: ${cmd}…`;
     try {
-      const resp = await apiFetch(`/api/monitoring/status`);
-      // For CLI commands, use AMI Command action via monitoring endpoint
-      const r = await apiFetch(`/api/calls/`);
-      out.textContent = JSON.stringify(r, null, 2);
+      const r = await apiFetch(`/api/monitoring/diag?cmd=${encodeURIComponent(cmd)}`);
+      out.textContent = r.output.join('\n') || '(no output)';
     } catch (e) {
       out.textContent = `Error: ${e.message}`;
     }

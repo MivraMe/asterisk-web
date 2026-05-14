@@ -26,6 +26,13 @@ async def lifespan(app: FastAPI):
     await init_db()
     logger.info("Database initialised")
 
+    # Import any .cfg files that exist on disk but are not yet in the DB
+    try:
+        from services.polycom_service import import_orphan_devices
+        await import_orphan_devices()
+    except Exception as exc:
+        logger.warning("Polycom orphan import failed: %s", exc)
+
     try:
         await ami.connect()
         asyncio.create_task(ami._reconnect_loop())
@@ -83,9 +90,14 @@ app.include_router(cdr_router, prefix="/api/cdr", tags=["CDR"])
 app.include_router(monitoring_router, prefix="/api/monitoring", tags=["Monitoring"])
 app.include_router(config_router, prefix="/api/config", tags=["Config"])
 
-# WebSocket routes (already defined in routers but need to be accessible at root-ish paths)
+# Register WebSocket routes at the paths the JS client expects.
+# The same handlers are also reachable at /api/monitoring/ws/events and
+# /api/calls/ws/calls via the included routers (both work).
 from routers.calls import ws_calls
 from routers.monitoring import ws_events
+
+app.add_api_websocket_route("/ws/events", ws_events)
+app.add_api_websocket_route("/ws/calls", ws_calls)
 
 
 @app.get("/health", tags=["Health"])

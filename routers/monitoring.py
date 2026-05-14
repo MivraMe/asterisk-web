@@ -1,14 +1,28 @@
 import asyncio
-from datetime import datetime, timedelta
-from pathlib import Path
+from datetime import datetime
 
-from fastapi import APIRouter, Query, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, HTTPException, Query, WebSocket, WebSocketDisconnect
 from sqlalchemy import func, select
 
 from asterisk_ami import ami
-from asterisk_cli import core_show_channels, core_show_uptime, pjsip_show_endpoints
+from asterisk_cli import (
+    core_show_uptime,
+    parse_pjsip_endpoints_output,
+    pjsip_show_endpoints,
+    run_asterisk_command,
+)
 from database import AsyncSessionLocal
 from models import Call, Log
+
+# Commands allowed through the diagnostics endpoint (sent via AMI Command action)
+_DIAG_ALLOWED = {
+    "core show uptime",
+    "pjsip show endpoints",
+    "core show channels concise",
+    "dialplan show",
+    "core show version",
+    "core show channels",
+}
 
 router = APIRouter()
 
@@ -16,21 +30,39 @@ router = APIRouter()
 @router.get("/status", summary="Asterisk server status")
 async def get_status() -> dict:
     connected = ami.is_connected
-    uptime = {}
+    uptime: dict = {}
     endpoint_count = 0
     endpoints_up = 0
 
     if connected:
+        # Prefer AMI Command (works even when Asterisk is on a remote host)
         try:
-            uptime = await core_show_uptime()
+            lines = await ami.send_command("core show uptime")
+            for line in lines:
+                if ":" in line and "--END" not in line:
+                    key, _, val = line.partition(":")
+                    uptime[key.strip()] = val.strip()
         except Exception:
-            pass
+            try:
+                uptime = await core_show_uptime()
+            except Exception:
+                pass
         try:
-            eps = await pjsip_show_endpoints()
+            lines = await ami.send_command("pjsip show endpoints")
+            eps = parse_pjsip_endpoints_output(lines)
             endpoint_count = len(eps)
-            endpoints_up = sum(1 for e in eps if e.get("state", "").lower() not in ("unavailable", "unknown"))
+            endpoints_up = sum(
+                1 for e in eps if e.get("state") not in ("Unavailable", "Unknown")
+            )
         except Exception:
-            pass
+            try:
+                eps = await pjsip_show_endpoints()
+                endpoint_count = len(eps)
+                endpoints_up = sum(
+                    1 for e in eps if e.get("state") not in ("Unavailable", "Unknown")
+                )
+            except Exception:
+                pass
 
     return {
         "ami_connected": connected,
@@ -39,6 +71,24 @@ async def get_status() -> dict:
         "endpoints_up": endpoints_up,
         "timestamp": datetime.utcnow().isoformat(),
     }
+
+
+@router.get("/diag", summary="Run a diagnostics command via AMI")
+async def run_diag(cmd: str = Query(..., description="CLI command to run")) -> dict:
+    if cmd not in _DIAG_ALLOWED:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Command not allowed. Permitted: {sorted(_DIAG_ALLOWED)}",
+        )
+    try:
+        lines = await ami.send_command(cmd)
+        # Strip the "--END COMMAND--" sentinel Asterisk appends
+        output = [l for l in lines if l != "--END COMMAND--"]
+        return {"cmd": cmd, "output": output, "source": "ami"}
+    except ConnectionError as exc:
+        raise HTTPException(status_code=503, detail=f"AMI not connected: {exc}")
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
 
 
 @router.get("/stats", summary="Call statistics")

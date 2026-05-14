@@ -1,24 +1,34 @@
 """
 Polycom provisioning service — orchestrates DB + file operations.
+
+Extension password/name are always read from pjsip.conf (source of truth).
+The SQLite Extension table may be empty; we never rely on it for SIP credentials.
+The extension_number is stored in config_json so it survives even without a DB join.
 """
+import json
 import logging
+import re
 from datetime import datetime
 
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
+from config import settings
 from database import AsyncSessionLocal
 from models import Extension, Log, PolycomDevice
 from polycom_provisioning import (
     delete_device_config,
+    get_device_config_path,
     list_device_macs,
     normalize_mac,
+    read_extension_from_device_cfg,
     read_site_config,
     render_device_config,
     render_site_config,
     write_device_config,
     write_site_config,
 )
+from services.asterisk_service import get_extension as get_pjsip_extension
 
 logger = logging.getLogger(__name__)
 
@@ -93,36 +103,37 @@ async def create_device(
     display_name: str = "",
 ) -> dict:
     mac = normalize_mac(mac)
+
+    # pjsip.conf is the source of truth for SIP credentials (DB extensions table may be empty)
+    pjsip_ext = get_pjsip_extension(extension_number)
+    password = (pjsip_ext.get("password") if pjsip_ext else None) or ""
+    dn = display_name or (pjsip_ext.get("name") if pjsip_ext else None) or extension_number
+    eff_ip = asterisk_ip or settings.asterisk_ip
+
+    xml_str = render_device_config(
+        mac=mac,
+        extension=extension_number,
+        password=password,
+        display_name=dn,
+        asterisk_ip=eff_ip,
+    )
+    dest = write_device_config(mac, xml_str)
+
     async with AsyncSessionLocal() as db:
-        # resolve extension
+        # Try to link to the Extension row if it exists in DB (optional)
         ext_row = (await db.execute(
             select(Extension).where(Extension.number == extension_number)
         )).scalar_one_or_none()
 
-        password = ext_row.password if ext_row else ""
-        dn = display_name or (ext_row.name if ext_row else extension_number)
-        ext_id = ext_row.id if ext_row else None
-        eff_ip = asterisk_ip or (await _get_asterisk_ip_from_site())
-
-        # render and write file
-        xml_str = render_device_config(
-            mac=mac,
-            extension=extension_number,
-            password=password or "",
-            display_name=dn,
-            asterisk_ip=eff_ip,
-        )
-        dest = write_device_config(mac, xml_str)
-
-        # persist to DB
         device = PolycomDevice(
             mac_address=mac,
-            extension_id=ext_id,
+            extension_id=ext_row.id if ext_row else None,
             model=model,
             asterisk_ip=eff_ip,
             config_file_path=str(dest),
             provisioning_status="ok",
             last_provision=datetime.utcnow(),
+            config_json=json.dumps({"extension_number": extension_number}),
         )
         db.add(device)
         await db.commit()
@@ -147,32 +158,35 @@ async def update_device(mac: str, **kwargs) -> dict:
                 select(Extension).where(Extension.number == extension_number)
             )).scalar_one_or_none()
             device.extension_id = ext_row.id if ext_row else None
+            device.config_json = json.dumps({"extension_number": extension_number})
         else:
-            # find current extension number
-            ext_row = None
-            if device.extension_id:
+            # resolve current extension_number from config_json first, then DB FK
+            if device.config_json:
+                try:
+                    extension_number = json.loads(device.config_json).get("extension_number") or ""
+                except (json.JSONDecodeError, TypeError):
+                    extension_number = ""
+            if not extension_number and device.extension_id:
                 ext_row = (await db.execute(
                     select(Extension).where(Extension.id == device.extension_id)
                 )).scalar_one_or_none()
-            extension_number = ext_row.number if ext_row else ""
+                extension_number = ext_row.number if ext_row else ""
 
         if "asterisk_ip" in kwargs:
             device.asterisk_ip = kwargs["asterisk_ip"]
         if "model" in kwargs:
             device.model = kwargs["model"]
 
-        # regenerate config file
-        ext_row_final = None
-        if device.extension_id:
-            ext_row_final = (await db.execute(
-                select(Extension).where(Extension.id == device.extension_id)
-            )).scalar_one_or_none()
+        # pjsip.conf is the source of truth for SIP credentials
+        pjsip_ext = get_pjsip_extension(extension_number) if extension_number else None
+        password = (pjsip_ext.get("password") if pjsip_ext else None) or ""
+        display_name = (pjsip_ext.get("name") if pjsip_ext else None) or extension_number
 
         xml_str = render_device_config(
             mac=mac,
             extension=extension_number,
-            password=(ext_row_final.password if ext_row_final else "") or "",
-            display_name=(ext_row_final.name if ext_row_final else "") or extension_number,
+            password=password,
+            display_name=display_name,
             asterisk_ip=device.asterisk_ip,
         )
         dest = write_device_config(mac, xml_str)
@@ -215,18 +229,26 @@ async def sync_asterisk_ip(new_ip: str) -> int:
         count = 0
         for device in devices:
             device.asterisk_ip = new_ip
-            ext_row = None
-            if device.extension_id:
+            # resolve extension number from config_json (source of truth)
+            ext_num = ""
+            if device.config_json:
+                try:
+                    ext_num = json.loads(device.config_json).get("extension_number") or ""
+                except (json.JSONDecodeError, TypeError):
+                    pass
+            if not ext_num and device.extension_id:
                 ext_row = (await db.execute(
                     select(Extension).where(Extension.id == device.extension_id)
                 )).scalar_one_or_none()
-            ext_num = ext_row.number if ext_row else ""
+                ext_num = ext_row.number if ext_row else ""
+            # pjsip.conf is source of truth for SIP credentials
+            pjsip_ext = get_pjsip_extension(ext_num) if ext_num else None
             try:
                 xml = render_device_config(
                     mac=device.mac_address,
                     extension=ext_num,
-                    password=(ext_row.password if ext_row else "") or "",
-                    display_name=(ext_row.name if ext_row else "") or ext_num,
+                    password=(pjsip_ext.get("password") if pjsip_ext else None) or "",
+                    display_name=(pjsip_ext.get("name") if pjsip_ext else None) or ext_num,
                     asterisk_ip=new_ip,
                 )
                 write_device_config(device.mac_address, xml)
@@ -242,21 +264,64 @@ async def sync_asterisk_ip(new_ip: str) -> int:
     return count
 
 
+async def import_orphan_devices() -> int:
+    """Import .cfg files on disk that have no DB entry. Returns count imported."""
+    async with AsyncSessionLocal() as db:
+        existing = {
+            row.mac_address
+            for row in (await db.execute(select(PolycomDevice))).scalars().all()
+        }
+
+    file_macs = set(list_device_macs())
+    orphans = file_macs - existing
+    count = 0
+    for mac in orphans:
+        ext_num = read_extension_from_device_cfg(mac) or ""
+        async with AsyncSessionLocal() as db:
+            ext_row = None
+            if ext_num:
+                ext_row = (await db.execute(
+                    select(Extension).where(Extension.number == ext_num)
+                )).scalar_one_or_none()
+            device = PolycomDevice(
+                mac_address=mac,
+                extension_id=ext_row.id if ext_row else None,
+                model="Unknown",
+                asterisk_ip=settings.asterisk_ip,
+                config_file_path=str(get_device_config_path(mac)),
+                provisioning_status="ok",
+                config_json=json.dumps({"extension_number": ext_num}) if ext_num else None,
+            )
+            db.add(device)
+            await db.commit()
+        count += 1
+        logger.info("Imported orphan Polycom device %s → ext %s", mac, ext_num or "(unknown)")
+
+    if count:
+        await _audit(f"Imported {count} orphan Polycom device(s) from disk")
+    return count
+
+
 async def _file_exists(mac: str) -> bool:
-    from polycom_provisioning import get_device_config_path
     return get_device_config_path(mac).exists()
 
 
-async def _get_asterisk_ip_from_site() -> str:
-    from config import settings
-    return settings.asterisk_ip
-
-
 def _device_to_dict(d: PolycomDevice) -> dict:
+    # extension_number is stored in config_json; fall back to extension relationship
+    ext_num: str | None = None
+    if d.config_json:
+        try:
+            ext_num = json.loads(d.config_json).get("extension_number")
+        except (json.JSONDecodeError, TypeError):
+            pass
+    if not ext_num and hasattr(d, "extension") and d.extension:
+        ext_num = d.extension.number
+
     return {
         "id": d.id,
         "mac_address": d.mac_address,
         "extension_id": d.extension_id,
+        "extension_number": ext_num,
         "model": d.model,
         "firmware": d.firmware,
         "ip_address": d.ip_address,
