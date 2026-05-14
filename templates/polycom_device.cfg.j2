@@ -7,19 +7,26 @@
        reg.1.auth.userId="{{ extension | e }}"
        reg.1.auth.password="{{ password | e }}"
        reg.1.label="{{ display_name | e }}"
-       reg.1.type="SIP"
+       reg.1.displayName="{{ display_name | e }}"
        reg.1.server.1.address="{{ asterisk_ip | e }}"
        reg.1.server.1.port="{{ sip_port }}"
        reg.1.server.1.transport="UDPOnly"
        reg.1.server.1.expires="3600"/>
 
   <voIpProt voIpProt.SIP.enable="1"
-            voIpProt.SIP.localSIPPort="5060"/>
+            voIpProt.server.1.address="{{ asterisk_ip | e }}"
+            voIpProt.server.1.port="{{ sip_port }}"
+            voIpProt.SIP.NATTraversal.keepalive.interval="30"/>
 
   <dialplan dialplan.digitmap="[2-9]11|0T|+1[2-9]xxxxxxxxx|[2-9]xxxxxxxxx|[2-9]xxxT"
             dialplan.digitmap.timeOut="3|3|3|3|3"/>
 
   <call call.callsPerLineKey="1"/>
+
+  <alertInfo alertInfo.1.value="intercom"
+             alertInfo.1.ring="silent"
+             alertInfo.1.answer="1"
+             alertInfo.1.answerMute="1"/>
 
   <up up.url="http://{{ provisioning_ip | e }}:{{ http_port }}/polycom/"/>
 
