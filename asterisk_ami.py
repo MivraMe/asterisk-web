@@ -145,6 +145,13 @@ class AsteriskAMI:
                 if "Event" in block:
                     await self._dispatch_event(block)
 
+                # Temporary: log every non-event block so we can see AMI format
+                if "Response" in block or "Output" in block:
+                    logger.info("AMI block keys=%s action_id=%r pending=%s cmd_resps=%s",
+                                list(block.keys()), action_id,
+                                list(self._pending.keys())[:3],
+                                list(command_resps.keys())[:3])
+
                 if "Response" in block and action_id in self._pending:
                     # Merge any Output lines buffered before this Response arrived
                     out = command_bufs.pop(action_id, []) + block.get("Output", [])
