@@ -3,9 +3,9 @@ import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from asterisk_ami import ami
@@ -73,6 +73,13 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Accept Polycom phone log uploads (PUT/POST) — phones try to push boot/app
+# logs to the provisioning server; silently accept so they don't show "provision fail".
+@app.api_route("/polycom/{path:path}", methods=["PUT", "POST", "DELETE"], include_in_schema=False)
+async def polycom_phone_upload(path: str, request: Request) -> Response:
+    await request.body()  # consume and discard
+    return Response(status_code=200)
 
 # Mount Polycom config directory so phones can fetch their configs
 polycom_dir = Path(settings.polycom_cfg_dir)
