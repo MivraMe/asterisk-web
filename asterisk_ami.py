@@ -133,8 +133,10 @@ class AsteriskAMI:
 
     async def _read_loop(self) -> None:
         """Continuously read blocks and dispatch responses/events."""
-        # accumulator for multi-block command responses
-        command_bufs: dict[str, list[str]] = {}
+        # Buffers for Command actions that arrive as multiple AMI blocks.
+        # Asterisk 18+ sends: Block1={Response+Message} then Block2={Output lines}
+        command_bufs: dict[str, list[str]] = {}   # accumulated Output lines per ActionID
+        command_resps: dict[str, dict] = {}        # saved Response block per ActionID
         try:
             while self._connected.is_set():
                 block = await self._read_block()
@@ -143,19 +145,35 @@ class AsteriskAMI:
                 if "Event" in block:
                     await self._dispatch_event(block)
 
-                if "Response" in block:
-                    if action_id in self._pending:
-                        # accumulate Output lines for Command actions
-                        if action_id in command_bufs:
-                            block.setdefault("Output", [])
-                            block["Output"] = command_bufs.pop(action_id) + block.get("Output", [])
+                if "Response" in block and action_id in self._pending:
+                    # Merge any Output lines buffered before this Response arrived
+                    out = command_bufs.pop(action_id, []) + block.get("Output", [])
+
+                    if (block.get("Message") == "Command output follows"
+                            and "--END COMMAND--" not in out):
+                        # Command response received but output not yet complete — wait
+                        command_resps[action_id] = block
+                        command_bufs[action_id] = out
+                    else:
+                        # Non-command response OR all output already present
+                        block["Output"] = out
+                        command_resps.pop(action_id, None)
                         fut = self._pending.pop(action_id)
                         if not fut.done():
                             fut.set_result(block)
 
-                # partial command output block (has Output but no Response yet)
                 elif "Output" in block and action_id:
+                    # Additional output block for a Command action (split response)
                     command_bufs.setdefault(action_id, []).extend(block["Output"])
+                    # Resolve when --END COMMAND-- is received
+                    if ("--END COMMAND--" in command_bufs[action_id]
+                            and action_id in command_resps
+                            and action_id in self._pending):
+                        resp = command_resps.pop(action_id)
+                        resp["Output"] = command_bufs.pop(action_id)
+                        fut = self._pending.pop(action_id)
+                        if not fut.done():
+                            fut.set_result(resp)
 
         except (ConnectionResetError, asyncio.IncompleteReadError, OSError) as exc:
             logger.warning("AMI read loop ended: %s", exc)
