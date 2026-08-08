@@ -99,7 +99,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY --from=builder /usr/sbin/asterisk /usr/sbin/asterisk
 COPY --from=builder /usr/lib/asterisk /usr/lib/asterisk
 COPY --from=builder /var/lib/asterisk /var/lib/asterisk
-COPY --from=builder /usr/include/asterisk /usr/include/asterisk
 
 RUN mkdir -p /etc/asterisk /var/spool/asterisk /var/log/asterisk /var/run/asterisk \
     && chown -R asterisk:asterisk /var/lib/asterisk /var/spool/asterisk /var/log/asterisk /var/run/asterisk
