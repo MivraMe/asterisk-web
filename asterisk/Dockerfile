@@ -64,6 +64,7 @@ RUN make menuselect.makeopts \
                               --enable CORE-SOUNDS-EN-ULAW \
                               --enable MOH-OPSOUND-ULAW \
                               menuselect.makeopts \
+    && make -j1 third-party \
     && make -j"$(nproc)" \
     && make install \
     && make config \
