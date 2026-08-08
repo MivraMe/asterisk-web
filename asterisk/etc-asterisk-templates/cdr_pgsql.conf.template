@@ -1,0 +1,16 @@
+; Rendered from this template on every container start (see entrypoint.sh).
+; Points cdr_pgsql directly at the "cdr" table in the same Postgres database
+; the webapp uses, so the webapp only ever needs to *read* CDR rows.
+;
+; This asterisk container runs with network_mode: host, so it reaches the
+; "db" service (bridge network) via the port docker-compose publishes on the
+; host's loopback interface — see CDR_DB_HOST in docker-compose.yml.
+[global]
+hostname = ${CDR_DB_HOST}
+port = ${CDR_DB_PORT}
+dbname = ${CDR_DB_NAME}
+user = ${CDR_DB_USER}
+password = ${CDR_DB_PASSWORD}
+table = cdr
+encoding = LATIN9
+timezone =

@@ -1,0 +1,49 @@
+{% extends "pages/base.html" %}
+{% block title %}Historique CDR{% endblock %}
+{% block content %}
+<div class="section-header">
+  <div>
+    <div class="section-title">Historique des appels</div>
+    <div class="section-subtitle">CDR — filtrer puis exporter en CSV</div>
+  </div>
+  <a class="btn btn-secondary" id="export-link"
+     href="/api/cdr/export.csv{{ '?' + query_string if query_string else '' }}">⬇ Export CSV</a>
+</div>
+
+<div class="card">
+  <form id="cdr-filters" hx-get="/cdr/table" hx-target="#cdr-table" hx-swap="innerHTML"
+        hx-trigger="submit, change delay:200ms"
+        hx-on::after-request="document.getElementById('export-link').href = '/api/cdr/export.csv?' + new URLSearchParams(new FormData(this)).toString()">
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label" for="from">Du</label>
+        <input type="date" id="from" name="from" value="{{ filters.date_from or '' }}">
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="to">Au</label>
+        <input type="date" id="to" name="to" value="{{ filters.date_to or '' }}">
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="extension">Extension</label>
+        <input type="text" id="extension" name="extension" value="{{ filters.extension or '' }}">
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="direction">Direction</label>
+        <select id="direction" name="direction">
+          <option value="" {% if not filters.direction %}selected{% endif %}>Toutes</option>
+          <option value="inbound" {% if filters.direction == 'inbound' %}selected{% endif %}>Entrant</option>
+          <option value="outbound" {% if filters.direction == 'outbound' %}selected{% endif %}>Sortant</option>
+          <option value="internal" {% if filters.direction == 'internal' %}selected{% endif %}>Interne</option>
+        </select>
+      </div>
+      <div class="form-group" style="justify-content:flex-end">
+        <button type="submit" class="btn btn-primary">Filtrer</button>
+      </div>
+    </div>
+  </form>
+</div>
+
+<div id="cdr-table">
+  {% include "partials/cdr_table.html" %}
+</div>
+{% endblock %}

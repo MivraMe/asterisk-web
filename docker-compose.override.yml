@@ -1,0 +1,27 @@
+# Auto-loaded by `docker compose up` — turns the prod topology (asterisk on
+# network_mode: host) into something that runs anywhere: a laptop, CI, this
+# sandbox. asterisk joins the normal Compose bridge network like webapp/db,
+# so DNS-by-service-name works and the LXC's real LAN isn't required.
+#
+# To deploy for real on the petite-etoile LXC, skip this file:
+#   docker compose -f docker-compose.yml up -d
+services:
+  asterisk:
+    network_mode: !reset null
+    ports:
+      - "5060:5060/udp"
+      - "5038:5038/tcp"
+      # Full range is 10000-20000 in prod; a much smaller slice is plenty to
+      # prove RTP port mapping works without asking Docker to punch 10k
+      # individual iptables rules in a throwaway dev environment.
+      - "10000-10099:10000-10099/udp"
+    environment:
+      # Now reachable by service name over the bridge network instead of
+      # via the host's loopback interface.
+      CDR_DB_HOST: db
+
+  webapp:
+    environment:
+      # asterisk is bridge-networked here too, so its AMI is just "asterisk"
+      # on the Compose network instead of host.docker.internal.
+      AMI_HOST: asterisk

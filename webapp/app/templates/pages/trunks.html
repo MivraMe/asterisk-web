@@ -1,0 +1,40 @@
+{% extends "pages/base.html" %}
+{% block title %}Trunks{% endblock %}
+{% block content %}
+<div class="section-header">
+  <div>
+    <div class="section-title">Trunks</div>
+    <div class="section-subtitle">{{ trunks|length }} trunk(s)</div>
+  </div>
+  <a href="/trunks/new" class="btn btn-primary">+ Nouveau trunk</a>
+</div>
+
+<div class="table-wrapper">
+  <div class="table-scroll">
+    <table>
+      <thead><tr><th>Nom</th><th>Fournisseur</th><th>Serveur SIP</th><th>DIDs</th><th>État</th><th></th></tr></thead>
+      <tbody>
+        {% for trunk in trunks %}
+        <tr id="trunk-row-{{ trunk.id }}">
+          <td>{{ trunk.name }}</td>
+          <td>{{ trunk.provider }}</td>
+          <td>{{ trunk.sip_server }}</td>
+          <td>{{ (trunk.did_numbers or [])|join(', ') or '—' }}</td>
+          <td>{% if trunk.enabled %}<span class="badge badge-ok">Actif</span>{% else %}<span class="badge badge-unknown">Désactivé</span>{% endif %}</td>
+          <td style="text-align:right; white-space:nowrap">
+            <a class="btn btn-secondary btn-sm" href="/trunks/{{ trunk.id }}/edit">Éditer</a>
+            <button class="btn btn-danger btn-sm"
+                    hx-delete="/api/trunks/{{ trunk.id }}"
+                    hx-target="#trunk-row-{{ trunk.id }}"
+                    hx-swap="delete"
+                    hx-confirm="Supprimer le trunk {{ trunk.name }} ?">Supprimer</button>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="6" class="empty-state">Aucun trunk configuré.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

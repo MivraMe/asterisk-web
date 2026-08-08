@@ -1,0 +1,24 @@
+{% extends "pages/base.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block content %}
+<div class="section-header">
+  <div>
+    <div class="section-title">Dashboard</div>
+    <div class="section-subtitle">État en temps réel via AMI</div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header">Enregistrements PJSIP</div>
+  <div id="registrations" hx-get="/partials/registrations" hx-trigger="load, every 5s" hx-swap="innerHTML">
+    <div class="empty-state"><span class="spinner"></span></div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header">Appels actifs</div>
+  <div id="active-calls" hx-get="/partials/active-calls" hx-trigger="load, every 5s" hx-swap="innerHTML">
+    <div class="empty-state"><span class="spinner"></span></div>
+  </div>
+</div>
+{% endblock %}

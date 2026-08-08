@@ -1,0 +1,88 @@
+; ============================================================
+; GENERATED FILE — do not edit by hand.
+; Rendered by app/config_generator.py from the "extensions", "trunks",
+; "inbound_routes" and "outbound_routes" tables. Any manual change here is
+; overwritten on the next save in the management UI.
+; ============================================================
+
+{% macro dial_action(dtype, dvalue) %}
+{% if dtype == 'extension' %}
+ same => n,Dial(PJSIP/{{ dvalue }},20)
+ same => n,Voicemail({{ dvalue }}@default,u)
+{% elif dtype == 'ring_group' %}
+ same => n,Dial({% for e in dvalue.split(',') %}PJSIP/{{ e.strip() }}{% if not loop.last %}&{% endif %}{% endfor %},20)
+{% elif dtype == 'voicemail' %}
+ same => n,Voicemail({{ dvalue }}@default,u)
+{% else %}
+ same => n,Hangup()
+{% endif %}
+{%- endmacro %}
+
+[general]
+static = yes
+writeprotect = no
+clearglobalvars = no
+
+[globals]
+
+; ------------------------------------------------------------------
+; Internal — extension-to-extension dialing, own-mailbox access
+; ------------------------------------------------------------------
+[internal]
+{% for ext in extensions %}
+exten => {{ ext.extension }},1,NoOp(Call to {{ ext.extension }})
+ same => n,Dial(PJSIP/{{ ext.extension }},20)
+ same => n,GotoIf($["${DIALSTATUS}" = "ANSWER"]?end)
+{% if ext.voicemail_enabled %}
+ same => n,Voicemail({{ ext.extension }}@default,u)
+{% else %}
+ same => n,Hangup()
+{% endif %}
+ same => n(end),Hangup()
+
+{% endfor %}
+exten => *97,1,NoOp(Check own voicemail)
+ same => n,VoiceMailMain(${CALLERID(num)}@default)
+ same => n,Hangup()
+
+exten => *98,1,NoOp(Check voicemail, prompt for mailbox)
+ same => n,VoiceMailMain()
+ same => n,Hangup()
+
+; ------------------------------------------------------------------
+; Outbound routing — patterns matched in ascending priority, first
+; available trunk that answers wins; falls through to the next on failure.
+; ------------------------------------------------------------------
+{% for pattern, routes in outbound_by_pattern %}
+exten => {{ pattern }},1,NoOp(Outbound match {{ pattern }})
+{% for route in routes %}
+ same => n,Set(OUTNUM=${EXTEN:{{ route.strip_digits }}})
+ same => n,Dial(PJSIP/{{ route.prepend or '' }}${OUTNUM}@trunk_{{ route.trunk_name }},60)
+ same => n,GotoIf($["${DIALSTATUS}" = "ANSWER"]?outdone)
+{% endfor %}
+ same => n,Congestion()
+ same => n(outdone),Hangup()
+
+{% endfor %}
+; ------------------------------------------------------------------
+; Inbound — one context per trunk, routed by DID
+; ------------------------------------------------------------------
+{% for trunk in trunks if trunk.enabled %}
+[from-trunk-{{ trunk.name }}]
+{% for route in inbound_routes if route.trunk_id == trunk.id %}
+exten => {{ route.did_number }},1,NoOp(Inbound {{ route.did_number }} via {{ trunk.name }})
+{% if route.time_condition and route.time_condition.start and route.time_condition.end and route.time_condition.days %}
+ same => n,GotoIfTime({{ route.time_condition.start }}-{{ route.time_condition.end }},{{ route.time_condition.days }},*,*?day,night)
+ same => n(night),NoOp(Outside business hours)
+{{ dial_action(route.time_condition.night_destination_type or route.destination_type, route.time_condition.night_destination_value or route.destination_value) }}
+ same => n,Hangup()
+ same => n(day),NoOp(Business hours)
+{% endif %}
+{{ dial_action(route.destination_type, route.destination_value) }}
+ same => n,Hangup()
+
+{% endfor %}
+exten => _X.,1,NoOp(Unmatched DID ${EXTEN} on trunk {{ trunk.name }})
+ same => n,Hangup()
+
+{% endfor %}

@@ -1,0 +1,27 @@
+; ============================================================
+; GENERATED FILE — do not edit by hand.
+; Rendered by app/config_generator.py from the "extensions" table.
+; ============================================================
+
+[general]
+format = wav49|wav
+serveremail = {{ voicemail_from_email }}
+attach = yes
+maxmsg = 100
+maxsecs = 180
+minsecs = 2
+maxsilence = 10
+silencethreshold = 128
+skipms = 3000
+review = yes
+operator = no
+envelope = yes
+sayduration = yes
+saydurationminfields = 2
+sendvoicemail = yes
+mailcmd = /usr/sbin/sendmail -t
+
+[default]
+{% for ext in extensions if ext.voicemail_enabled %}
+{{ ext.extension }} => {{ ext.voicemail_pin or '0000' }},{{ ext.display_name or ext.extension }},{{ ext.voicemail_email or '' }}
+{% endfor %}

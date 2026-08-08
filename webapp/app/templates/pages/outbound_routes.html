@@ -1,0 +1,40 @@
+{% extends "pages/base.html" %}
+{% block title %}Routage sortant{% endblock %}
+{% block content %}
+<div class="section-header">
+  <div>
+    <div class="section-title">Routage sortant</div>
+    <div class="section-subtitle">{{ routes|length }} route(s) — priorité croissante = ordre de failover</div>
+  </div>
+  <a href="/outbound-routes/new" class="btn btn-primary">+ Nouvelle route</a>
+</div>
+
+<div class="table-wrapper">
+  <div class="table-scroll">
+    <table>
+      <thead><tr><th>Pattern</th><th>Trunk</th><th>Priorité</th><th>Strip</th><th>Prepend</th><th></th></tr></thead>
+      <tbody>
+        {% for route in routes %}
+        <tr id="outbound-row-{{ route.id }}">
+          <td><code>{{ route.pattern }}</code></td>
+          <td>{{ trunk_names.get(route.trunk_id, '—') }}</td>
+          <td>{{ route.priority }}</td>
+          <td>{{ route.strip_digits }}</td>
+          <td>{{ route.prepend or '—' }}</td>
+          <td style="text-align:right; white-space:nowrap">
+            <a class="btn btn-secondary btn-sm" href="/outbound-routes/{{ route.id }}/edit">Éditer</a>
+            <button class="btn btn-danger btn-sm"
+                    hx-delete="/api/outbound-routes/{{ route.id }}"
+                    hx-target="#outbound-row-{{ route.id }}"
+                    hx-swap="delete"
+                    hx-confirm="Supprimer cette route sortante ?">Supprimer</button>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="6" class="empty-state">Aucune route sortante.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
