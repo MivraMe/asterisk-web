@@ -145,6 +145,19 @@ class AsteriskAMI:
                     fut = self._pending.pop(action_id)
                     if not fut.done():
                         fut.set_result(block)
+
+                if "Response" in block and action_id in self._list_collectors:
+                    # Some list actions (e.g. PJSIPShowEndpoints with nothing
+                    # configured) answer with a bare "Response: Error" and no
+                    # events at all — there's no terminating "...Complete"
+                    # event to wait for, so treat that as an empty result
+                    # instead of hanging until the call times out. A
+                    # "Response: Success" here just acknowledges the request;
+                    # the actual data still arrives as Event blocks.
+                    if block.get("Response") == "Error":
+                        events, fut = self._list_collectors.pop(action_id)
+                        if not fut.done():
+                            fut.set_result([])
         except (ConnectionResetError, asyncio.IncompleteReadError, OSError) as exc:
             logger.warning("AMI read loop ended: %s", exc)
         finally:
@@ -246,7 +259,9 @@ class AsteriskAMI:
         return await self.send_action({"Action": "Command", "Command": command})
 
     async def pjsip_reload(self) -> dict:
-        return await self._reload("pjsip reload")
+        # There is no bare "pjsip reload" CLI command — res_pjsip's config
+        # is reloaded through the generic module-reload mechanism.
+        return await self._reload("module reload res_pjsip.so")
 
     async def dialplan_reload(self) -> dict:
         return await self._reload("dialplan reload")

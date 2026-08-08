@@ -31,8 +31,8 @@ petite-etoile/
 **La base Postgres est la source de vérité.** Chaque modification
 (extension, trunk, route) déclenche : écriture en DB → régénération de
 `pjsip.conf` / `extensions.conf` / `voicemail.conf` depuis des templates
-Jinja2 → reload sélectif via AMI (`pjsip reload`, `dialplan reload`,
-`voicemail reload`). Pas de restart de conteneur, pas de coupure des appels
+Jinja2 → reload sélectif via AMI (`module reload res_pjsip.so`, `dialplan
+reload`, `voicemail reload`). Pas de restart de conteneur, pas de coupure des appels
 en cours.
 
 Le CDR fonctionne à l'inverse : Asterisk (`cdr_pgsql`) écrit directement
@@ -155,7 +155,7 @@ webapp).
 
 - `GET /health` sur le webapp indique si l'AMI est connecté.
 - Logs Asterisk : `data/asterisk-log/` (bind mount, lisible depuis l'hôte).
-- Si `pjsip reload` ne semble pas pris en compte : vérifier que webapp a
+- Si le reload PJSIP ne semble pas pris en compte : vérifier que webapp a
   bien accès en écriture au même volume que `/etc/asterisk` du conteneur
   asterisk (`data/asterisk-etc` doit être monté dans les deux services).
 - Pour forcer une régénération + reload manuel : `POST /api/reload`.

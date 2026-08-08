@@ -36,6 +36,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         libical-dev \
         unixodbc-dev \
         uuid-dev \
+        zlib1g-dev \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /usr/src
@@ -99,8 +100,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY --from=builder /usr/sbin/asterisk /usr/sbin/asterisk
 COPY --from=builder /usr/lib/asterisk /usr/lib/asterisk
 COPY --from=builder /var/lib/asterisk /var/lib/asterisk
+# Asterisk's own private shared libs (built from main/, not part of any
+# packaged dependency) — the binary won't start without these.
+COPY --from=builder /usr/lib/libasteriskssl.so* /usr/lib/libasteriskpj.so* /usr/lib/
 
-RUN mkdir -p /etc/asterisk /var/spool/asterisk /var/log/asterisk /var/run/asterisk \
+RUN ldconfig \
+    && mkdir -p /etc/asterisk /var/spool/asterisk /var/log/asterisk /var/run/asterisk \
     && chown -R asterisk:asterisk /var/lib/asterisk /var/spool/asterisk /var/log/asterisk /var/run/asterisk
 
 # Baked-in default config set, copied into the (initially empty) bind-mounted
