@@ -1,0 +1,18 @@
+# Rendered on every container start (see entrypoint.sh). msmtp-mta provides
+# /usr/sbin/sendmail, so app_voicemail's default mailcmd works unmodified —
+# this is just the outbound relay email-to-voicemail uses (Resend, same
+# provider already used for HomeTix).
+defaults
+auth        on
+tls         on
+tls_trust_file /etc/ssl/certs/ca-certificates.crt
+logfile     /var/log/asterisk/msmtp.log
+
+account     resend
+host        ${RESEND_SMTP_HOST}
+port        ${RESEND_SMTP_PORT}
+user        ${RESEND_SMTP_USER}
+password    ${RESEND_SMTP_PASSWORD}
+from        ${VOICEMAIL_FROM_EMAIL}
+
+account default : resend

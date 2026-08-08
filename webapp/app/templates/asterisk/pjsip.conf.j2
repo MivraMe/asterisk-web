@@ -1,0 +1,99 @@
+; ============================================================
+; GENERATED FILE — do not edit by hand.
+; Rendered by app/config_generator.py from the "extensions" and "trunks"
+; tables. Any manual change here is overwritten on the next save in the
+; management UI.
+; ============================================================
+
+[transport-udp]
+type = transport
+protocol = udp
+bind = 0.0.0.0:5060
+
+[transport-tcp]
+type = transport
+protocol = tcp
+bind = 0.0.0.0:5060
+
+[endpoint-template](!)
+type = endpoint
+transport = transport-udp
+disallow = all
+allow = ulaw,alaw
+direct_media = no
+rtp_symmetric = yes
+force_rport = yes
+rewrite_contact = yes
+ice_support = no
+dtmf_mode = rfc4733
+
+; ------------------------------------------------------------------
+; Extensions (internal SIP endpoints)
+; ------------------------------------------------------------------
+{% for ext in extensions %}
+; --- extension {{ ext.extension }} ({{ ext.display_name or "" }}) ---
+[{{ ext.extension }}](endpoint-template)
+type = endpoint
+context = {{ ext.context }}
+auth = auth{{ ext.extension }}
+aors = {{ ext.extension }}
+callerid = {{ ext.display_name or ext.extension }} <{{ ext.extension }}>
+
+[auth{{ ext.extension }}]
+type = auth
+auth_type = userpass
+username = {{ ext.extension }}
+password = {{ ext.sip_password }}
+
+[{{ ext.extension }}]
+type = aor
+max_contacts = 1
+remove_existing = yes
+{% endfor %}
+
+; ------------------------------------------------------------------
+; Trunks (VoIP.ms, Twilio, ...)
+; ------------------------------------------------------------------
+{% for trunk in trunks if trunk.enabled %}
+; --- trunk: {{ trunk.name }} ({{ trunk.provider }}) ---
+[trunk_{{ trunk.name }}]
+type = endpoint
+transport = transport-udp
+context = from-trunk-{{ trunk.name }}
+disallow = all
+allow = ulaw,alaw
+outbound_auth = auth_trunk_{{ trunk.name }}
+aors = trunk_{{ trunk.name }}
+from_user = {{ trunk.username }}
+rtp_symmetric = yes
+force_rport = yes
+rewrite_contact = yes
+
+[auth_trunk_{{ trunk.name }}]
+type = auth
+auth_type = userpass
+username = {{ trunk.username }}
+password = {{ trunk.secret }}
+
+[trunk_{{ trunk.name }}]
+type = aor
+contact = sip:{{ trunk.sip_server }}
+qualify_frequency = 60
+
+[identify_trunk_{{ trunk.name }}]
+type = identify
+endpoint = trunk_{{ trunk.name }}
+match = {{ trunk.sip_server.split(':')[0] }}
+
+{% if trunk.provider == 'voipms' %}
+; VoIP.ms terminates on a per-account SIP registration.
+[reg_trunk_{{ trunk.name }}]
+type = registration
+transport = transport-udp
+outbound_auth = auth_trunk_{{ trunk.name }}
+server_uri = sip:{{ trunk.sip_server }}
+client_uri = sip:{{ trunk.username }}@{{ trunk.sip_server }}
+retry_interval = 60
+expiration = 120
+{% endif %}
+{% endfor %}

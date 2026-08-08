@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}Asterisk Manager{% endblock %} · petite-etoile</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+  <script src="/static/js/htmx.min.js"></script>
+</head>
+<body>
+<div id="app">
+  <header id="header">
+    <h1>★ ASTERISK MANAGER</h1>
+    <div class="header-status">
+      <div id="ami-status" hx-get="/partials/ami-status" hx-trigger="load, every 10s" hx-swap="innerHTML">
+        <span id="ami-dot"></span> <span id="ami-label">...</span>
+      </div>
+      <form action="/api/auth/logout" method="post" style="margin:0">
+        <button type="submit" class="btn btn-icon" title="Se déconnecter">⏻ Déconnexion</button>
+      </form>
+    </div>
+  </header>
+
+  <aside id="sidebar">
+    <nav>
+      <ul>
+        <li><a href="/" class="{{ 'active' if nav_active == 'dashboard' else '' }}"><span class="icon">◈</span><span class="label">Dashboard</span></a></li>
+        <li><a href="/extensions" class="{{ 'active' if nav_active == 'extensions' else '' }}"><span class="icon">☎</span><span class="label">Extensions</span></a></li>
+        <li><a href="/trunks" class="{{ 'active' if nav_active == 'trunks' else '' }}"><span class="icon">⇄</span><span class="label">Trunks</span></a></li>
+        <li><a href="/inbound-routes" class="{{ 'active' if nav_active == 'inbound-routes' else '' }}"><span class="icon">↘</span><span class="label">Routage entrant</span></a></li>
+        <li><a href="/outbound-routes" class="{{ 'active' if nav_active == 'outbound-routes' else '' }}"><span class="icon">↗</span><span class="label">Routage sortant</span></a></li>
+        <li><a href="/voicemail" class="{{ 'active' if nav_active == 'voicemail' else '' }}"><span class="icon">✉</span><span class="label">Boîtes vocales</span></a></li>
+        <li><a href="/cdr" class="{{ 'active' if nav_active == 'cdr' else '' }}"><span class="icon">📋</span><span class="label">Historique CDR</span></a></li>
+      </ul>
+    </nav>
+    <div id="sidebar-footer">
+      <div>petite-étoile</div>
+      <div>Asterisk Manager v2.0</div>
+    </div>
+  </aside>
+
+  <main id="main">
+    {% block content %}{% endblock %}
+  </main>
+</div>
+
+<div id="toast-container"></div>
+</body>
+</html>

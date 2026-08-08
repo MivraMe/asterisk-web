@@ -1,0 +1,52 @@
+{% extends "pages/base.html" %}
+{% block title %}{{ 'Éditer' if route else 'Nouvelle' }} route sortante{% endblock %}
+{% block content %}
+<div class="section-header">
+  <div class="section-title">{{ 'Éditer route ' + route.pattern if route else 'Nouvelle route sortante' }}</div>
+</div>
+
+<div class="card" style="max-width:560px">
+  {% if error %}<div class="form-error" style="margin-bottom:14px">{{ error }}</div>{% endif %}
+  <form method="post" action="{{ '/outbound-routes/' ~ route.id ~ '/edit' if route else '/outbound-routes/new' }}">
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label" for="pattern">Pattern (dialplan)</label>
+        <input type="text" id="pattern" name="pattern" required placeholder="_1NXXNXXXXXX"
+               value="{{ form.pattern if form else (route.pattern if route else '') }}">
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="trunk_id">Trunk</label>
+        <select id="trunk_id" name="trunk_id" required>
+          {% set current_trunk = (form.trunk_id if form else (route.trunk_id if route else none)) | string %}
+          {% for trunk in trunks %}
+          <option value="{{ trunk.id }}" {% if current_trunk == trunk.id|string %}selected{% endif %}>{{ trunk.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label" for="priority">Priorité (failover, plus petit = essayé en premier)</label>
+        <input type="number" id="priority" name="priority" min="1"
+               value="{{ form.priority if form else (route.priority if route else 1) }}">
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="strip_digits">Chiffres à retirer</label>
+        <input type="number" id="strip_digits" name="strip_digits" min="0"
+               value="{{ form.strip_digits if form else (route.strip_digits if route else 0) }}">
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="prepend">Préfixe à ajouter</label>
+        <input type="text" id="prepend" name="prepend"
+               value="{{ form.prepend if form else (route.prepend or '' if route else '') }}">
+      </div>
+    </div>
+
+    <div class="form-actions">
+      <a href="/outbound-routes" class="btn btn-secondary">Annuler</a>
+      <button type="submit" class="btn btn-primary">Enregistrer</button>
+    </div>
+  </form>
+</div>
+{% endblock %}

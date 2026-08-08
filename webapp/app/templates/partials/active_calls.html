@@ -1,0 +1,25 @@
+{% if error %}
+<div class="empty-state"><div class="empty-icon">⚠</div><p>{{ error }}</p></div>
+{% elif not calls %}
+<div class="empty-state"><p>Aucun appel en cours.</p></div>
+{% else %}
+<div class="table-wrapper">
+  <div class="table-scroll">
+    <table>
+      <thead><tr><th>Canal</th><th>Appelant</th><th>Contexte</th><th>Extension</th><th>Application</th><th>Durée</th></tr></thead>
+      <tbody>
+        {% for c in calls %}
+        <tr>
+          <td>{{ c.channel }}</td>
+          <td>{{ c.caller_id }}</td>
+          <td>{{ c.context }}</td>
+          <td>{{ c.extension }}</td>
+          <td>{{ c.application }}</td>
+          <td>{{ c.duration }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}

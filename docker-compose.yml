@@ -1,34 +1,90 @@
+# Production topology — meant to run on the petite-etoile LXC.
+#
+# asterisk runs with network_mode: host so RTP (10000-20000/udp) and SIP
+# (5060/udp) don't need per-port Docker NAT mapping and don't add a second
+# NAT layer on top of the LAN/router. webapp and db stay on the regular
+# Docker bridge network.
+#
+# For local development without a real LXC/LAN, docker-compose.override.yml
+# (auto-loaded by `docker compose up`) switches asterisk to normal bridge
+# networking. To deploy for real, explicitly skip the override:
+#   docker compose -f docker-compose.yml up -d
 services:
-  asterisk-web:
-    build: .
-    container_name: asterisk-web
+  asterisk:
+    build: ./asterisk
+    network_mode: host
+    restart: unless-stopped
+    volumes:
+      - ./data/asterisk-etc:/etc/asterisk
+      - ./data/asterisk-spool:/var/spool/asterisk
+      - ./data/asterisk-log:/var/log/asterisk
+    environment:
+      AMI_USER: ${AMI_USER:-webapp}
+      AMI_SECRET: ${AMI_SECRET:?AMI_SECRET is required}
+      # asterisk is host-networked; it reaches "db" (bridge network) via the
+      # port compose publishes on the host's loopback interface below.
+      CDR_DB_HOST: 127.0.0.1
+      CDR_DB_PORT: "5432"
+      CDR_DB_NAME: ${DB_NAME:-asterisk}
+      CDR_DB_USER: ${DB_USER:-asterisk}
+      CDR_DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
+      RESEND_SMTP_HOST: ${RESEND_SMTP_HOST:-smtp.resend.com}
+      RESEND_SMTP_PORT: ${RESEND_SMTP_PORT:-587}
+      RESEND_SMTP_USER: ${RESEND_SMTP_USER:-resend}
+      RESEND_SMTP_PASSWORD: ${RESEND_SMTP_PASSWORD:-}
+      VOICEMAIL_FROM_EMAIL: ${VOICEMAIL_FROM_EMAIL:-voicemail@localhost}
+    depends_on:
+      db:
+        condition: service_healthy
+
+  webapp:
+    build: ./webapp
     restart: unless-stopped
     ports:
-      - "8080:8080"
-    environment:
-      - AMI_HOST=${AMI_HOST:-192.168.0.107}
-      - AMI_PORT=${AMI_PORT:-5038}
-      - AMI_USERNAME=${AMI_USERNAME:-manager}
-      - AMI_SECRET=${AMI_SECRET}
-      - ASTERISK_IP=${ASTERISK_IP:-192.168.0.107}
-      - PJSIP_CONF=${PJSIP_CONF:-/etc/asterisk/pjsip.conf}
-      - EXTENSIONS_CONF=${EXTENSIONS_CONF:-/etc/asterisk/extensions.conf}
-      - FEATURES_CONF=${FEATURES_CONF:-/etc/asterisk/features.conf}
-      - POLYCOM_CFG_DIR=${POLYCOM_CFG_DIR:-/var/www/html/polycom}
-      - DATABASE_URL=sqlite+aiosqlite:////data/asterisk_web.db
-      - BACKUP_DIR=/data/backups
-      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - "8000:8000"
     volumes:
-      - /etc/asterisk:/etc/asterisk:rw
-      - /var/www/html/polycom:/var/www/html/polycom:rw
-      - asterisk_data:/data
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
-      start_period: 10s
+      # Same bind mount as the asterisk container's /etc/asterisk — this is
+      # what makes the generate-then-reload pattern work: webapp writes the
+      # files, then tells Asterisk (over AMI) to reload them.
+      - ./data/asterisk-etc:/etc/asterisk
+      - ./data/asterisk-spool:/var/spool/asterisk:ro
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${DB_USER:-asterisk}:${DB_PASSWORD:?DB_PASSWORD is required}@db:5432/${DB_NAME:-asterisk}
+      # webapp stays on the Docker bridge network while asterisk is
+      # host-networked — host.docker.internal (below) resolves to the LXC
+      # host itself, which is where Asterisk's AMI actually listens.
+      AMI_HOST: host.docker.internal
+      AMI_PORT: "5038"
+      AMI_USER: ${AMI_USER:-webapp}
+      AMI_SECRET: ${AMI_SECRET:?AMI_SECRET is required}
+      ASTERISK_ETC_DIR: /etc/asterisk
+      ASTERISK_SPOOL_DIR: /var/spool/asterisk
+      SECRET_KEY: ${SECRET_KEY:?SECRET_KEY is required}
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+      VOICEMAIL_FROM_EMAIL: ${VOICEMAIL_FROM_EMAIL:-voicemail@localhost}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      db:
+        condition: service_healthy
 
-volumes:
-  asterisk_data:
-    driver: local
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USER:-asterisk}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
+      POSTGRES_DB: ${DB_NAME:-asterisk}
+    volumes:
+      - ./data/postgres:/var/lib/postgresql/data
+    ports:
+      # Published on loopback only, so the host-networked asterisk container
+      # (cdr_pgsql) can reach Postgres via 127.0.0.1 — see CDR_DB_HOST above.
+      - "127.0.0.1:5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-asterisk} -d ${DB_NAME:-asterisk}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5

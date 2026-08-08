@@ -1,0 +1,32 @@
+{% extends "pages/base.html" %}
+{% block title %}Boîtes vocales{% endblock %}
+{% block content %}
+<div class="section-header">
+  <div>
+    <div class="section-title">Boîtes vocales</div>
+    <div class="section-subtitle">Gérées par extension — créez/éditez une extension pour changer son NIP ou son courriel</div>
+  </div>
+</div>
+
+<div class="table-wrapper">
+  <div class="table-scroll">
+    <table>
+      <thead><tr><th>Extension</th><th>Nom</th><th>Messagerie</th><th>NIP</th><th>Courriel</th><th></th></tr></thead>
+      <tbody>
+        {% for ext in extensions %}
+        <tr>
+          <td>{{ ext.extension }}</td>
+          <td>{{ ext.display_name or '—' }}</td>
+          <td>{% if ext.voicemail_enabled %}<span class="badge badge-ok">Activée</span>{% else %}<span class="badge badge-unknown">Désactivée</span>{% endif %}</td>
+          <td>{{ ext.voicemail_pin or '—' }}</td>
+          <td>{{ ext.voicemail_email or '—' }}</td>
+          <td style="text-align:right"><a class="btn btn-secondary btn-sm" href="/voicemail/{{ ext.extension }}/edit">Éditer</a></td>
+        </tr>
+        {% else %}
+        <tr><td colspan="6" class="empty-state">Aucune extension.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

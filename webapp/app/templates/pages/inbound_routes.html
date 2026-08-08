@@ -1,0 +1,39 @@
+{% extends "pages/base.html" %}
+{% block title %}Routage entrant{% endblock %}
+{% block content %}
+<div class="section-header">
+  <div>
+    <div class="section-title">Routage entrant</div>
+    <div class="section-subtitle">{{ routes|length }} route(s)</div>
+  </div>
+  <a href="/inbound-routes/new" class="btn btn-primary">+ Nouvelle route</a>
+</div>
+
+<div class="table-wrapper">
+  <div class="table-scroll">
+    <table>
+      <thead><tr><th>DID</th><th>Trunk</th><th>Destination</th><th>Horaires</th><th></th></tr></thead>
+      <tbody>
+        {% for route in routes %}
+        <tr id="inbound-row-{{ route.id }}">
+          <td>{{ route.did_number }}</td>
+          <td>{{ trunk_names.get(route.trunk_id, '—') }}</td>
+          <td><span class="badge badge-info">{{ route.destination_type }}</span> {{ route.destination_value }}</td>
+          <td>{% if route.time_condition %}{{ route.time_condition.get('start','') }}–{{ route.time_condition.get('end','') }} ({{ route.time_condition.get('days','') }}){% else %}—{% endif %}</td>
+          <td style="text-align:right; white-space:nowrap">
+            <a class="btn btn-secondary btn-sm" href="/inbound-routes/{{ route.id }}/edit">Éditer</a>
+            <button class="btn btn-danger btn-sm"
+                    hx-delete="/api/inbound-routes/{{ route.id }}"
+                    hx-target="#inbound-row-{{ route.id }}"
+                    hx-swap="delete"
+                    hx-confirm="Supprimer cette route entrante ?">Supprimer</button>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="5" class="empty-state">Aucune route entrante.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

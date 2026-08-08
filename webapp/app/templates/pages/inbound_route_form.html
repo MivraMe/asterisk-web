@@ -1,0 +1,76 @@
+{% extends "pages/base.html" %}
+{% block title %}{{ 'Éditer' if route else 'Nouvelle' }} route entrante{% endblock %}
+{% block content %}
+<div class="section-header">
+  <div class="section-title">{{ 'Éditer route ' + route.did_number if route else 'Nouvelle route entrante' }}</div>
+</div>
+
+<div class="card" style="max-width:560px">
+  {% if error %}<div class="form-error" style="margin-bottom:14px">{{ error }}</div>{% endif %}
+  <form method="post" action="{{ '/inbound-routes/' ~ route.id ~ '/edit' if route else '/inbound-routes/new' }}">
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label" for="did_number">Numéro DID</label>
+        <input type="text" id="did_number" name="did_number" required
+               value="{{ form.did_number if form else (route.did_number if route else '') }}">
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="trunk_id">Trunk</label>
+        <select id="trunk_id" name="trunk_id" required>
+          {% set current_trunk = (form.trunk_id if form else (route.trunk_id if route else none)) | string %}
+          {% for trunk in trunks %}
+          <option value="{{ trunk.id }}" {% if current_trunk == trunk.id|string %}selected{% endif %}>{{ trunk.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label" for="destination_type">Type de destination</label>
+        {% set current_type = form.destination_type if form else (route.destination_type if route else 'extension') %}
+        <select id="destination_type" name="destination_type">
+          <option value="extension" {% if current_type == 'extension' %}selected{% endif %}>Extension</option>
+          <option value="ring_group" {% if current_type == 'ring_group' %}selected{% endif %}>Groupe de sonnerie</option>
+          <option value="voicemail" {% if current_type == 'voicemail' %}selected{% endif %}>Messagerie vocale</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="destination_value">Destination</label>
+        <input type="text" id="destination_value" name="destination_value" required
+               placeholder="101 ou 101,102,103 pour un groupe"
+               value="{{ form.destination_value if form else (route.destination_value if route else '') }}">
+      </div>
+    </div>
+
+    <div class="form-hint" style="margin-bottom:8px">Horaires optionnels (laisser vide pour router en tout temps) :</div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label" for="tc_start">Début (HH:MM)</label>
+        <input type="text" id="tc_start" name="tc_start" placeholder="09:00"
+               value="{{ form.tc_start if form else (route.time_condition.get('start','') if route and route.time_condition else '') }}">
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="tc_end">Fin (HH:MM)</label>
+        <input type="text" id="tc_end" name="tc_end" placeholder="17:00"
+               value="{{ form.tc_end if form else (route.time_condition.get('end','') if route and route.time_condition else '') }}">
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="tc_days">Jours</label>
+        <input type="text" id="tc_days" name="tc_days" placeholder="mon-fri"
+               value="{{ form.tc_days if form else (route.time_condition.get('days','') if route and route.time_condition else '') }}">
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label" for="tc_night_value">Destination hors-horaire (extension ou boîte vocale)</label>
+      <input type="text" id="tc_night_value" name="tc_night_value"
+             value="{{ form.tc_night_value if form else (route.time_condition.get('night_destination_value','') if route and route.time_condition else '') }}">
+    </div>
+
+    <div class="form-actions">
+      <a href="/inbound-routes" class="btn btn-secondary">Annuler</a>
+      <button type="submit" class="btn btn-primary">Enregistrer</button>
+    </div>
+  </form>
+</div>
+{% endblock %}

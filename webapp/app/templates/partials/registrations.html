@@ -1,0 +1,30 @@
+{% if error %}
+<div class="empty-state"><div class="empty-icon">⚠</div><p>{{ error }}</p></div>
+{% elif not endpoints %}
+<div class="empty-state"><p>Aucune extension configurée.</p></div>
+{% else %}
+<div class="table-wrapper">
+  <div class="table-scroll">
+    <table>
+      <thead><tr><th>Extension</th><th>État</th><th>Canaux actifs</th></tr></thead>
+      <tbody>
+        {% for e in endpoints %}
+        <tr>
+          <td>{{ e.endpoint }}</td>
+          <td>
+            {% if e.device_state in ('NOT_INUSE', 'IN_USE', 'RINGING') %}
+            <span class="badge badge-up">{{ e.device_state }}</span>
+            {% elif e.device_state == 'UNAVAILABLE' %}
+            <span class="badge badge-down">{{ e.device_state }}</span>
+            {% else %}
+            <span class="badge badge-unknown">{{ e.device_state or 'INCONNU' }}</span>
+            {% endif %}
+          </td>
+          <td>{{ e.active_channels or 0 }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}

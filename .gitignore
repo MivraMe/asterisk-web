@@ -3,6 +3,7 @@ __pycache__/
 *.pyo
 .env
 data/
-*.db
 *.bak
 .DS_Store
+.pytest_cache/
+*.egg-info/

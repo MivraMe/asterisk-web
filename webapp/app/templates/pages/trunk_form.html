@@ -1,0 +1,73 @@
+{% extends "pages/base.html" %}
+{% block title %}{{ 'Éditer' if trunk else 'Nouveau' }} trunk{% endblock %}
+{% block content %}
+<div class="section-header">
+  <div class="section-title">{{ 'Éditer trunk ' + trunk.name if trunk else 'Nouveau trunk' }}</div>
+</div>
+
+<div class="card" style="max-width:560px">
+  {% if error %}<div class="form-error" style="margin-bottom:14px">{{ error }}</div>{% endif %}
+  <form method="post" action="{{ '/trunks/' ~ trunk.id ~ '/edit' if trunk else '/trunks/new' }}">
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label" for="name">Nom</label>
+        <input type="text" id="name" name="name" required
+               value="{{ form.name if form else (trunk.name if trunk else '') }}"
+               {% if trunk %}readonly{% endif %}>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="provider">Fournisseur</label>
+        <select id="provider" name="provider">
+          {% set current = form.provider if form else (trunk.provider if trunk else 'voipms') %}
+          <option value="voipms" {% if current == 'voipms' %}selected{% endif %}>VoIP.ms</option>
+          <option value="twilio" {% if current == 'twilio' %}selected{% endif %}>Twilio</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label" for="sip_server">Serveur SIP</label>
+        <input type="text" id="sip_server" name="sip_server" placeholder="montreal.voip.ms" required
+               value="{{ form.sip_server if form else (trunk.sip_server if trunk else '') }}">
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="username">Nom d'utilisateur</label>
+        <input type="text" id="username" name="username" required
+               value="{{ form.username if form else (trunk.username if trunk else '') }}">
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label" for="secret">Secret{% if trunk %} (laisser vide pour ne pas changer){% endif %}</label>
+      <input type="password" id="secret" name="secret" {% if not trunk %}required{% endif %}>
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label" for="did_numbers">Numéros DID (séparés par des virgules)</label>
+        <input type="text" id="did_numbers" name="did_numbers" placeholder="15145551234, 15145555678"
+               value="{{ form.did_numbers if form else ((trunk.did_numbers or [])|join(', ') if trunk else '') }}">
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="max_channels">Canaux simultanés max</label>
+        <input type="number" id="max_channels" name="max_channels" min="1"
+               value="{{ form.max_channels if form else (trunk.max_channels if trunk else 5) }}">
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">
+        <input type="checkbox" name="enabled" value="true" style="width:auto"
+               {% if (form.enabled if form else (trunk.enabled if trunk else true)) %}checked{% endif %}>
+        Trunk actif
+      </label>
+    </div>
+
+    <div class="form-actions">
+      <a href="/trunks" class="btn btn-secondary">Annuler</a>
+      <button type="submit" class="btn btn-primary">Enregistrer</button>
+    </div>
+  </form>
+</div>
+{% endblock %}

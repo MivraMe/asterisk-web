@@ -1,0 +1,60 @@
+{% extends "pages/base.html" %}
+{% block title %}{{ 'Éditer' if ext else 'Nouvelle' }} extension{% endblock %}
+{% block content %}
+<div class="section-header">
+  <div class="section-title">{{ 'Éditer extension ' + ext.extension if ext else 'Nouvelle extension' }}</div>
+</div>
+
+<div class="card" style="max-width:560px">
+  {% if error %}<div class="form-error" style="margin-bottom:14px">{{ error }}</div>{% endif %}
+  <form method="post" action="{{ '/extensions/' ~ ext.id ~ '/edit' if ext else '/extensions/new' }}">
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label" for="extension">Numéro</label>
+        <input type="text" id="extension" name="extension" pattern="\d{2,10}" required
+               value="{{ form.extension if form else (ext.extension if ext else '') }}"
+               {% if ext %}readonly{% endif %}>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="display_name">Nom affiché</label>
+        <input type="text" id="display_name" name="display_name" value="{{ form.display_name if form else (ext.display_name or '' if ext else '') }}">
+      </div>
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label" for="context">Contexte</label>
+        <input type="text" id="context" name="context" value="{{ form.context if form else (ext.context if ext else 'internal') }}">
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="sip_password">Mot de passe SIP{% if ext %} (laisser vide pour ne pas changer){% endif %}</label>
+        <input type="password" id="sip_password" name="sip_password" minlength="8" {% if not ext %}required{% endif %}>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">
+        <input type="checkbox" name="voicemail_enabled" value="true" style="width:auto"
+               {% if (form.voicemail_enabled if form else (ext.voicemail_enabled if ext else true)) %}checked{% endif %}>
+        Messagerie vocale activée
+      </label>
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label" for="voicemail_pin">NIP messagerie</label>
+        <input type="text" id="voicemail_pin" name="voicemail_pin" value="{{ form.voicemail_pin if form else (ext.voicemail_pin or '' if ext else '') }}">
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="voicemail_email">Courriel de notification</label>
+        <input type="email" id="voicemail_email" name="voicemail_email" value="{{ form.voicemail_email if form else (ext.voicemail_email or '' if ext else '') }}">
+      </div>
+    </div>
+
+    <div class="form-actions">
+      <a href="/extensions" class="btn btn-secondary">Annuler</a>
+      <button type="submit" class="btn btn-primary">Enregistrer</button>
+    </div>
+  </form>
+</div>
+{% endblock %}

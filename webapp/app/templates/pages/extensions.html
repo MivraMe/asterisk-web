@@ -1,0 +1,41 @@
+{% extends "pages/base.html" %}
+{% block title %}Extensions{% endblock %}
+{% block content %}
+<div class="section-header">
+  <div>
+    <div class="section-title">Extensions</div>
+    <div class="section-subtitle">{{ extensions|length }} extension(s)</div>
+  </div>
+  <a href="/extensions/new" class="btn btn-primary">+ Nouvelle extension</a>
+</div>
+
+<div class="table-wrapper">
+  <div class="table-scroll">
+    <table>
+      <thead>
+        <tr><th>Extension</th><th>Nom</th><th>Contexte</th><th>Voicemail</th><th></th></tr>
+      </thead>
+      <tbody id="extensions-tbody">
+        {% for ext in extensions %}
+        <tr id="ext-row-{{ ext.id }}">
+          <td>{{ ext.extension }}</td>
+          <td>{{ ext.display_name or '—' }}</td>
+          <td>{{ ext.context }}</td>
+          <td>{% if ext.voicemail_enabled %}<span class="badge badge-ok">Activée</span>{% else %}<span class="badge badge-unknown">Désactivée</span>{% endif %}</td>
+          <td style="text-align:right; white-space:nowrap">
+            <a class="btn btn-secondary btn-sm" href="/extensions/{{ ext.id }}/edit">Éditer</a>
+            <button class="btn btn-danger btn-sm"
+                    hx-delete="/api/extensions/{{ ext.id }}"
+                    hx-target="#ext-row-{{ ext.id }}"
+                    hx-swap="delete"
+                    hx-confirm="Supprimer l'extension {{ ext.extension }} ?">Supprimer</button>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="5" class="empty-state">Aucune extension. Créez-en une pour commencer.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
