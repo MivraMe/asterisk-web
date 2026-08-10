@@ -34,17 +34,19 @@ clearglobalvars = no
 [internal]
 {% for ext in extensions %}
 exten => {{ ext.extension }},1,NoOp(Call to {{ ext.extension }})
+{% if ext.follow_me_enabled and ext.follow_me_numbers and ext.follow_me_strategy == 'simultaneous' %}
+; Follow-me (simultaneous) — desk phone and all external numbers ring in a
+; single Dial() together. External legs go via a Local channel back into
+; this same context's outbound routing below, so trunk selection/failover
+; is reused instead of hardcoding a trunk for the forwarded leg.
+ same => n,Dial(PJSIP/{{ ext.extension }}{% for num in ext.follow_me_numbers %}&Local/{{ num }}@internal/n{% endfor %},{{ ext.follow_me_timeout }})
+ same => n,GotoIf($["${DIALSTATUS}" = "ANSWER"]?end)
+{% else %}
  same => n,Dial(PJSIP/{{ ext.extension }},{{ ext.follow_me_timeout if (ext.follow_me_enabled and ext.follow_me_numbers) else 20 }})
  same => n,GotoIf($["${DIALSTATUS}" = "ANSWER"]?end)
 {% if ext.follow_me_enabled and ext.follow_me_numbers %}
-{% if ext.follow_me_strategy == 'simultaneous' %}
-; Follow-me (simultaneous) — dials the desk phone's own outbound route for
-; each external number via a Local channel, so trunk selection/failover
-; reuses the normal outbound routing below instead of hardcoding a trunk.
- same => n,Dial({% for num in ext.follow_me_numbers %}Local/{{ num }}@internal/n{% if not loop.last %}&{% endif %}{% endfor %},20)
- same => n,GotoIf($["${DIALSTATUS}" = "ANSWER"]?end)
-{% else %}
-; Follow-me (sequential) — external numbers rung one at a time, in order.
+; Follow-me (sequential) — external numbers rung one at a time, in order,
+; each via a Local channel into this context's outbound routing below.
 {% for num in ext.follow_me_numbers %}
  same => n,Dial(Local/{{ num }}@internal/n,20)
  same => n,GotoIf($["${DIALSTATUS}" = "ANSWER"]?end)
@@ -68,16 +70,29 @@ exten => *98,1,NoOp(Check voicemail, prompt for mailbox)
  same => n,Hangup()
 
 ; Paging/intercom — one-way multicast RTP to phones listening on the
-; standard page-group address (confirmed working with Polycom phones:
-; 224.0.1.116:5001, channel 1 = normal priority). Dial *80 from any phone,
-; or trigger it from the dashboard's "Page all" button (AMI Originate of
-; Local/*80@internal). Channels 24/25 (priority/emergency, Polycom
-; convention) aren't wired up — duplicate this extension on a different
-; multicast port if you need them.
+; standard page-group address (Polycom: 224.0.1.116:5001, channel 1 =
+; normal priority). Dial *80 from any phone, or trigger it from the
+; dashboard's "Page all" button (AMI Originate of Local/*80@internal).
+; Channels 24/25 (priority/emergency, Polycom convention) aren't wired up —
+; duplicate this extension on a different multicast port if you need them.
+;
+; MulticastRTP's dial string is MulticastRTP/<type>/<host:port> only — a
+; 3rd slash-separated field is parsed as a *control* address, not a codec
+; (confirmed via `core show channeltype MulticastRTP` on Asterisk 22).
+; There is no way to pick a codec from the dial string at all: the channel
+; just uses whatever format the calling channel is already writing/reading
+; when Dial() creates it. Left alone that's whatever codec this extension's
+; PJSIP endpoint negotiated (opus/g722 by default — see endpoint-template),
+; which static-multicast paging listeners like Polycom's don't expect
+; (they assume ulaw, RTP payload type 0, no signaling to negotiate
+; anything else). Forcing the channel to ulaw before Dial() is what
+; actually gets audio to play on the phones.
 exten => *80,1,NoOp(Page all)
  same => n,Answer()
+ same => n,Set(CHANNEL(write_format)=ulaw)
+ same => n,Set(CHANNEL(read_format)=ulaw)
  same => n,Wait(1)
- same => n,Dial(MulticastRTP/basic/224.0.1.116:5001/ulaw,10)
+ same => n,Dial(MulticastRTP/basic/224.0.1.116:5001,10)
  same => n,Hangup()
 
 ; ------------------------------------------------------------------
