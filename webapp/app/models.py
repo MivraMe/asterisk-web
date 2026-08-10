@@ -36,6 +36,13 @@ class Extension(Base):
     voicemail_pin: Mapped[str | None] = mapped_column(String(10))
     voicemail_email: Mapped[str | None] = mapped_column(Text)
     context: Mapped[str] = mapped_column(String(50), default="internal")
+    # Follow-me / call forwarding — external numbers rung (in addition to
+    # the desk phone) before falling back to voicemail. follow_me_timeout is
+    # how long the desk phone rings alone before follow-me kicks in.
+    follow_me_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
+    follow_me_numbers: Mapped[list[str] | None] = mapped_column(ARRAY(String))
+    follow_me_timeout: Mapped[int] = mapped_column(Integer, default=20)
+    follow_me_strategy: Mapped[str] = mapped_column(String(20), default="simultaneous")  # simultaneous | sequential
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
@@ -53,11 +60,28 @@ class Trunk(Base):
     # trunk's endpoint — some providers/accounts only accept a subset (e.g. a
     # VoIP.ms account limited to G722). NULL means "use the default".
     codecs: Mapped[list[str] | None] = mapped_column(ARRAY(String))
+    # Outbound CallerID (a real DID) used for from_user/callerid on this
+    # trunk's endpoint. Some providers reject outbound calls unless this is
+    # a real number they recognize — trunk.username (the account/subaccount
+    # id) is not always acceptable. NULL falls back to trunk.username.
+    callerid: Mapped[str | None] = mapped_column(String(20))
     max_channels: Mapped[int] = mapped_column(Integer, default=5)
     enabled: Mapped[bool] = mapped_column(Boolean, default=True)
 
     inbound_routes: Mapped[list["InboundRoute"]] = relationship(back_populates="trunk")
     outbound_routes: Mapped[list["OutboundRoute"]] = relationship(back_populates="trunk")
+
+
+class RingGroup(Base):
+    __tablename__ = "ring_groups"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[str] = mapped_column(String(50), unique=True, nullable=False)
+    extensions: Mapped[list[str]] = mapped_column(ARRAY(String), nullable=False)
+    strategy: Mapped[str] = mapped_column(String(20), default="ringall")  # ringall | hunt | random
+    ring_timeout: Mapped[int] = mapped_column(Integer, default=20)
+    fallback_destination_type: Mapped[str] = mapped_column(String(20), default="voicemail")  # extension|voicemail|hangup
+    fallback_destination_value: Mapped[str | None] = mapped_column(Text)
 
 
 class InboundRoute(Base):

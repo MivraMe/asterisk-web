@@ -50,6 +50,7 @@ from app.routers import (  # noqa: E402
     inbound_routes,
     outbound_routes,
     pages,
+    ring_groups,
     status,
     trunks,
     voicemail,
@@ -58,6 +59,7 @@ from app.routers import (  # noqa: E402
 app.include_router(auth.router, prefix="/api/auth", tags=["Auth"])
 app.include_router(extensions.router, prefix="/api/extensions", tags=["Extensions"])
 app.include_router(trunks.router, prefix="/api/trunks", tags=["Trunks"])
+app.include_router(ring_groups.router, prefix="/api/ring-groups", tags=["Ring groups"])
 app.include_router(inbound_routes.router, prefix="/api/inbound-routes", tags=["Inbound routes"])
 app.include_router(outbound_routes.router, prefix="/api/outbound-routes", tags=["Outbound routes"])
 app.include_router(voicemail.router, prefix="/api/voicemail", tags=["Voicemail"])

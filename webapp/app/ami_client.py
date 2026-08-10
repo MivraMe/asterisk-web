@@ -255,6 +255,18 @@ class AsteriskAMI:
             "Async": "true",
         })
 
+    async def page_all(self) -> dict:
+        """Triggers the *80 paging extension (multicast intercom) with no
+        real caller — originates a Local channel into it and immediately
+        answers the originating half with a no-op, so the *80 dialplan runs
+        "headless" instead of needing a real device to ring first."""
+        return await self.send_action({
+            "Action": "Originate",
+            "Channel": "Local/*80@internal",
+            "Application": "NoOp",
+            "Async": "true",
+        })
+
     async def _reload(self, command: str) -> dict:
         return await self.send_action({"Action": "Command", "Command": command})
 

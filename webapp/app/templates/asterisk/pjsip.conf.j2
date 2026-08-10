@@ -68,7 +68,10 @@ disallow = all
 allow = {{ trunk.codecs|join(',') if trunk.codecs else 'opus,g722,ulaw,alaw' }}
 outbound_auth = auth_trunk_{{ trunk.name }}
 aors = trunk_{{ trunk.name }}
-from_user = {{ trunk.username }}
+from_user = {{ trunk.callerid or trunk.username }}
+{% if trunk.callerid %}
+callerid = {{ trunk.callerid }}
+{% endif %}
 rtp_symmetric = yes
 force_rport = yes
 rewrite_contact = yes

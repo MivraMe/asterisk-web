@@ -5,6 +5,9 @@ from pydantic import BaseModel, ConfigDict, Field
 
 Provider = Literal["voipms", "twilio"]
 DestinationType = Literal["extension", "ring_group", "voicemail"]
+RingStrategy = Literal["ringall", "hunt", "random"]
+FallbackDestinationType = Literal["extension", "voicemail", "hangup"]
+FollowMeStrategy = Literal["simultaneous", "sequential"]
 
 
 # ------------------------------------------------------------------ #
@@ -33,6 +36,11 @@ class ExtensionBase(BaseModel):
     voicemail_enabled: bool = True
     voicemail_pin: str | None = None
     voicemail_email: str | None = None
+    # Follow-me / call forwarding.
+    follow_me_enabled: bool = False
+    follow_me_numbers: list[str] = Field(default_factory=list)
+    follow_me_timeout: int = 20
+    follow_me_strategy: FollowMeStrategy = "simultaneous"
 
 
 class ExtensionCreate(ExtensionBase):
@@ -46,6 +54,10 @@ class ExtensionUpdate(BaseModel):
     voicemail_enabled: bool | None = None
     voicemail_pin: str | None = None
     voicemail_email: str | None = None
+    follow_me_enabled: bool | None = None
+    follow_me_numbers: list[str] | None = None
+    follow_me_timeout: int | None = None
+    follow_me_strategy: FollowMeStrategy | None = None
 
 
 class ExtensionOut(ExtensionBase):
@@ -69,6 +81,9 @@ class TrunkBase(BaseModel):
     # Overrides the default codec offer (opus,g722,ulaw,alaw) for this trunk.
     # None/empty means "use the default".
     codecs: list[str] | None = None
+    # Outbound CallerID (a real DID) for from_user/callerid. None falls back
+    # to trunk.username.
+    callerid: str | None = None
 
 
 class TrunkCreate(TrunkBase):
@@ -84,9 +99,40 @@ class TrunkUpdate(BaseModel):
     max_channels: int | None = None
     enabled: bool | None = None
     codecs: list[str] | None = None
+    callerid: str | None = None
 
 
 class TrunkOut(TrunkBase):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+
+
+# ------------------------------------------------------------------ #
+# Ring groups                                                          #
+# ------------------------------------------------------------------ #
+
+class RingGroupBase(BaseModel):
+    name: str
+    extensions: list[str] = Field(min_length=1)
+    strategy: RingStrategy = "ringall"
+    ring_timeout: int = 20
+    fallback_destination_type: FallbackDestinationType = "voicemail"
+    fallback_destination_value: str | None = None
+
+
+class RingGroupCreate(RingGroupBase):
+    pass
+
+
+class RingGroupUpdate(BaseModel):
+    extensions: list[str] | None = None
+    strategy: RingStrategy | None = None
+    ring_timeout: int | None = None
+    fallback_destination_type: FallbackDestinationType | None = None
+    fallback_destination_value: str | None = None
+
+
+class RingGroupOut(RingGroupBase):
     model_config = ConfigDict(from_attributes=True)
     id: int
 

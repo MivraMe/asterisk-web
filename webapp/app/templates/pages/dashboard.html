@@ -21,4 +21,30 @@
     <div class="empty-state"><span class="spinner"></span></div>
   </div>
 </div>
+
+<div class="card">
+  <div class="card-header">Paging / Interphone</div>
+  <button class="btn btn-primary" id="page-all-btn" onclick="pageAll()">📢 Page all</button>
+  <span id="page-status" style="margin-left:10px; font-size:12px; color:var(--color-text-muted)"></span>
+  <div class="form-hint" style="margin-top:8px">Diffuse un appel multicast (*80) vers les téléphones configurés
+    pour écouter le groupe de paging (Polycom : 224.0.1.116:5001, canal 1).</div>
+</div>
+
+<script>
+  async function pageAll() {
+    if (!confirm('Déclencher le paging sur tous les téléphones ?')) return;
+    const btn = document.getElementById('page-all-btn');
+    const status = document.getElementById('page-status');
+    btn.disabled = true;
+    status.textContent = 'Envoi...';
+    try {
+      const resp = await fetch('/api/page', { method: 'POST' });
+      status.textContent = resp.ok ? 'Page envoyée.' : 'Échec (AMI indisponible ?).';
+    } catch (e) {
+      status.textContent = 'Erreur réseau.';
+    } finally {
+      btn.disabled = false;
+    }
+  }
+</script>
 {% endblock %}

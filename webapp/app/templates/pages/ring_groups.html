@@ -1,0 +1,40 @@
+{% extends "pages/base.html" %}
+{% block title %}Groupes de sonnerie{% endblock %}
+{% block content %}
+<div class="section-header">
+  <div>
+    <div class="section-title">Groupes de sonnerie</div>
+    <div class="section-subtitle">{{ ring_groups|length }} groupe(s)</div>
+  </div>
+  <a href="/ring-groups/new" class="btn btn-primary">+ Nouveau groupe</a>
+</div>
+
+<div class="table-wrapper">
+  <div class="table-scroll">
+    <table>
+      <thead><tr><th>Nom</th><th>Membres</th><th>Stratégie</th><th>Timeout</th><th>Fallback</th><th></th></tr></thead>
+      <tbody>
+        {% for rg in ring_groups %}
+        <tr id="ringgroup-row-{{ rg.id }}">
+          <td>{{ rg.name }}</td>
+          <td>{{ rg.extensions|join(', ') }}</td>
+          <td>{{ {'ringall': 'Toutes en même temps', 'hunt': 'En série', 'random': 'Aléatoire'}.get(rg.strategy, rg.strategy) }}</td>
+          <td>{{ rg.ring_timeout }}s</td>
+          <td><span class="badge badge-info">{{ rg.fallback_destination_type }}</span> {{ rg.fallback_destination_value or '' }}</td>
+          <td style="text-align:right; white-space:nowrap">
+            <a class="btn btn-secondary btn-sm" href="/ring-groups/{{ rg.id }}/edit">Éditer</a>
+            <button class="btn btn-danger btn-sm"
+                    hx-delete="/api/ring-groups/{{ rg.id }}"
+                    hx-target="#ringgroup-row-{{ rg.id }}"
+                    hx-swap="delete"
+                    hx-confirm="Supprimer le groupe {{ rg.name }} ?">Supprimer</button>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="6" class="empty-state">Aucun groupe de sonnerie. Utilisez-en un comme destination dans une route entrante.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

@@ -6,6 +6,7 @@ re-renders all three files and asks Asterisk (over AMI) to reload just the
 affected modules — no container restart, no dropped calls.
 """
 import logging
+import random
 from itertools import groupby
 from pathlib import Path
 
@@ -15,7 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ami_client import ami
 from app.config import settings
-from app.models import Extension, InboundRoute, OutboundRoute, Trunk
+from app.models import Extension, InboundRoute, OutboundRoute, RingGroup, Trunk
 
 logger = logging.getLogger(__name__)
 
@@ -28,9 +29,22 @@ _env = Environment(
 )
 
 
+def _shuffle_filter(seq):
+    # Used by ring groups with strategy="random" — reshuffled on every
+    # regeneration, not per-call (Asterisk's dialplan has no native random
+    # dial order without app_queue), but good enough to vary who's first.
+    items = list(seq)
+    random.shuffle(items)
+    return items
+
+
+_env.filters["shuffle"] = _shuffle_filter
+
+
 async def _load_data(db: AsyncSession) -> dict:
     extensions = (await db.execute(select(Extension).order_by(Extension.extension))).scalars().all()
     trunks = (await db.execute(select(Trunk).order_by(Trunk.name))).scalars().all()
+    ring_groups = (await db.execute(select(RingGroup).order_by(RingGroup.name))).scalars().all()
     inbound_routes = (await db.execute(select(InboundRoute))).scalars().all()
     outbound_routes = (
         await db.execute(select(OutboundRoute).order_by(OutboundRoute.pattern, OutboundRoute.priority))
@@ -57,6 +71,7 @@ async def _load_data(db: AsyncSession) -> dict:
     return {
         "extensions": extensions,
         "trunks": trunks,
+        "ring_groups": ring_groups,
         "inbound_routes": inbound_routes,
         "outbound_by_pattern": outbound_by_pattern,
         "voicemail_from_email": settings.voicemail_from_email,

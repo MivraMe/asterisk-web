@@ -38,9 +38,18 @@
       </div>
     </div>
 
-    <div class="form-group">
-      <label class="form-label" for="secret">Secret{% if trunk %} (laisser vide pour ne pas changer){% endif %}</label>
-      <input type="password" id="secret" name="secret" {% if not trunk %}required{% endif %}>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label" for="secret">Secret{% if trunk %} (laisser vide pour ne pas changer){% endif %}</label>
+        <input type="password" id="secret" name="secret" {% if not trunk %}required{% endif %}>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="callerid">CallerID sortant (override)</label>
+        <input type="text" id="callerid" name="callerid" placeholder="15145551234"
+               value="{{ form.callerid if form else (trunk.callerid or '' if trunk else '') }}">
+        <div class="form-hint">Laisser vide pour utiliser le nom d'utilisateur. Certains providers (ex.
+          VoIP.ms) exigent un vrai numéro DID ici, sinon l'appel sortant est rejeté.</div>
+      </div>
     </div>
 
     <div class="form-row">

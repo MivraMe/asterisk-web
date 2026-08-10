@@ -1,0 +1,72 @@
+{% extends "pages/base.html" %}
+{% block title %}{{ 'Éditer' if ring_group else 'Nouveau' }} groupe de sonnerie{% endblock %}
+{% block content %}
+<div class="section-header">
+  <div class="section-title">{{ 'Éditer groupe ' + ring_group.name if ring_group else 'Nouveau groupe de sonnerie' }}</div>
+</div>
+
+<div class="card" style="max-width:560px">
+  {% if error %}<div class="form-error" style="margin-bottom:14px">{{ error }}</div>{% endif %}
+  <form method="post" action="{{ '/ring-groups/' ~ ring_group.id ~ '/edit' if ring_group else '/ring-groups/new' }}">
+    <div class="form-group">
+      <label class="form-label" for="name">Nom</label>
+      <input type="text" id="name" name="name" required
+             value="{{ form.name if form else (ring_group.name if ring_group else '') }}"
+             {% if ring_group %}readonly{% endif %}>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Membres</label>
+      {% set current_members = form.members if form else ((ring_group.extensions if ring_group else [])) %}
+      {% for ext in all_extensions %}
+      <label class="form-label" style="text-transform:none; display:block; font-weight:normal; margin-bottom:6px">
+        <input type="checkbox" name="members" value="{{ ext.extension }}" style="width:auto"
+               {% if ext.extension in current_members %}checked{% endif %}>
+        {{ ext.extension }}{% if ext.display_name %} — {{ ext.display_name }}{% endif %}
+      </label>
+      {% else %}
+      <div class="form-hint">Aucune extension configurée pour l'instant.</div>
+      {% endfor %}
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label" for="strategy">Stratégie</label>
+        {% set current_strategy = form.strategy if form else (ring_group.strategy if ring_group else 'ringall') %}
+        <select id="strategy" name="strategy">
+          <option value="ringall" {% if current_strategy == 'ringall' %}selected{% endif %}>Toutes en même temps</option>
+          <option value="hunt" {% if current_strategy == 'hunt' %}selected{% endif %}>En série</option>
+          <option value="random" {% if current_strategy == 'random' %}selected{% endif %}>Aléatoire</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="ring_timeout">Timeout (secondes, par tentative)</label>
+        <input type="number" id="ring_timeout" name="ring_timeout" min="5"
+               value="{{ form.ring_timeout if form else (ring_group.ring_timeout if ring_group else 20) }}">
+      </div>
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label" for="fallback_destination_type">Fallback (si personne ne répond)</label>
+        {% set current_fb = form.fallback_destination_type if form else (ring_group.fallback_destination_type if ring_group else 'voicemail') %}
+        <select id="fallback_destination_type" name="fallback_destination_type">
+          <option value="voicemail" {% if current_fb == 'voicemail' %}selected{% endif %}>Boîte vocale</option>
+          <option value="extension" {% if current_fb == 'extension' %}selected{% endif %}>Extension</option>
+          <option value="hangup" {% if current_fb == 'hangup' %}selected{% endif %}>Raccrocher</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="fallback_destination_value">Valeur (numéro d'extension ou boîte vocale)</label>
+        <input type="text" id="fallback_destination_value" name="fallback_destination_value"
+               value="{{ form.fallback_destination_value if form else (ring_group.fallback_destination_value or '' if ring_group else '') }}">
+      </div>
+    </div>
+
+    <div class="form-actions">
+      <a href="/ring-groups" class="btn btn-secondary">Annuler</a>
+      <button type="submit" class="btn btn-primary">Enregistrer</button>
+    </div>
+  </form>
+</div>
+{% endblock %}

@@ -5,7 +5,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config_generator import regenerate_and_reload
-from app.models import Extension, InboundRoute, OutboundRoute, Trunk
+from app.models import Extension, InboundRoute, OutboundRoute, RingGroup, Trunk
 
 
 class NotFoundError(Exception):
@@ -115,6 +115,52 @@ async def delete_trunk(db: AsyncSession, trunk_id: int) -> None:
     await db.delete(trunk)
     await db.commit()
     await regenerate_and_reload(db, reason=f"trunk {name} deleted")
+
+
+# ------------------------------------------------------------------ #
+# Ring groups                                                          #
+# ------------------------------------------------------------------ #
+
+async def list_ring_groups(db: AsyncSession) -> list[RingGroup]:
+    return (await db.execute(select(RingGroup).order_by(RingGroup.name))).scalars().all()
+
+
+async def get_ring_group(db: AsyncSession, ring_group_id: int) -> RingGroup:
+    rg = await db.get(RingGroup, ring_group_id)
+    if rg is None:
+        raise NotFoundError(f"Ring group {ring_group_id} not found")
+    return rg
+
+
+async def create_ring_group(db: AsyncSession, data: dict) -> RingGroup:
+    existing = (await db.execute(select(RingGroup).where(RingGroup.name == data["name"]))).scalar_one_or_none()
+    if existing is not None:
+        raise ConflictError(f"Ring group {data['name']} already exists")
+    rg = RingGroup(**data)
+    db.add(rg)
+    await db.commit()
+    await db.refresh(rg)
+    await regenerate_and_reload(db, reason=f"ring group {rg.name} created")
+    return rg
+
+
+async def update_ring_group(db: AsyncSession, ring_group_id: int, data: dict) -> RingGroup:
+    rg = await get_ring_group(db, ring_group_id)
+    for k, v in data.items():
+        if v is not None:
+            setattr(rg, k, v)
+    await db.commit()
+    await db.refresh(rg)
+    await regenerate_and_reload(db, reason=f"ring group {rg.name} updated")
+    return rg
+
+
+async def delete_ring_group(db: AsyncSession, ring_group_id: int) -> None:
+    rg = await get_ring_group(db, ring_group_id)
+    name = rg.name
+    await db.delete(rg)
+    await db.commit()
+    await regenerate_and_reload(db, reason=f"ring group {name} deleted")
 
 
 # ------------------------------------------------------------------ #

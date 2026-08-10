@@ -51,6 +51,37 @@
       </div>
     </div>
 
+    <div class="form-group">
+      <label class="form-label">
+        <input type="checkbox" name="follow_me_enabled" value="true" style="width:auto"
+               {% if (form.follow_me_enabled if form else (ext.follow_me_enabled if ext else false)) %}checked{% endif %}>
+        Transfert / follow-me activé
+      </label>
+      <div class="form-hint">Sonne le poste seul pendant le délai ci-dessous, puis sonne aussi les numéros
+        externes (cellulaire, etc.) avant la messagerie vocale.</div>
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label" for="follow_me_numbers">Numéros externes (séparés par des virgules)</label>
+        <input type="text" id="follow_me_numbers" name="follow_me_numbers" placeholder="15145559999"
+               value="{{ form.follow_me_numbers if form else ((ext.follow_me_numbers or [])|join(', ') if ext else '') }}">
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="follow_me_timeout">Délai avant activation (secondes)</label>
+        <input type="number" id="follow_me_timeout" name="follow_me_timeout" min="5"
+               value="{{ form.follow_me_timeout if form else (ext.follow_me_timeout if ext else 20) }}">
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="follow_me_strategy">Ordre</label>
+        {% set current_fm = form.follow_me_strategy if form else (ext.follow_me_strategy if ext else 'simultaneous') %}
+        <select id="follow_me_strategy" name="follow_me_strategy">
+          <option value="simultaneous" {% if current_fm == 'simultaneous' %}selected{% endif %}>Simultané</option>
+          <option value="sequential" {% if current_fm == 'sequential' %}selected{% endif %}>Séquentiel (cascade)</option>
+        </select>
+      </div>
+    </div>
+
     <div class="form-actions">
       <a href="/extensions" class="btn btn-secondary">Annuler</a>
       <button type="submit" class="btn btn-primary">Enregistrer</button>

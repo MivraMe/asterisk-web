@@ -8,12 +8,62 @@
 <div class="card" style="max-width:560px">
   {% if error %}<div class="form-error" style="margin-bottom:14px">{{ error }}</div>{% endif %}
   <form method="post" action="{{ '/outbound-routes/' ~ route.id ~ '/edit' if route else '/outbound-routes/new' }}">
-    <div class="form-row">
+
+    {% if not route %}
+    <div class="tabs" style="margin-bottom:14px">
+      <button type="button" class="tab-btn active" id="tab-simple" onclick="setOutboundMode('simple')">Mode simple</button>
+      <button type="button" class="tab-btn" id="tab-advanced" onclick="setOutboundMode('advanced')">Mode avancé</button>
+    </div>
+
+    <div id="mode-simple" class="tab-content active">
+      <div class="form-group">
+        <label class="form-label">Types de numéros (combinables)</label>
+        <label class="form-label" style="text-transform:none; display:block; font-weight:normal; margin-bottom:6px">
+          <input type="checkbox" name="simple_patterns" value="_NXXNXXXXXX" style="width:auto"> Numéros locaux à 10 chiffres (<code>_NXXNXXXXXX</code>)
+        </label>
+        <label class="form-label" style="text-transform:none; display:block; font-weight:normal; margin-bottom:6px">
+          <input type="checkbox" name="simple_patterns" value="_1NXXNXXXXXX" style="width:auto" checked> Numéros avec indicatif à 11 chiffres (<code>_1NXXNXXXXXX</code>)
+        </label>
+        <label class="form-label" style="text-transform:none; display:block; font-weight:normal; margin-bottom:6px">
+          <input type="checkbox" name="simple_patterns" value="_011." style="width:auto"> Numéros internationaux (<code>_011.</code>)
+        </label>
+        <label class="form-label" style="text-transform:none; display:block; font-weight:normal">
+          <input type="checkbox" name="simple_patterns" value="_X." style="width:auto"> Tout numéro (<code>_X.</code>)
+        </label>
+        <div class="form-hint">Une route sortante est créée pour chaque type coché, avec les mêmes trunk/priorité/réglages ci-dessous.</div>
+      </div>
+    </div>
+
+    <div id="mode-advanced" class="tab-content">
       <div class="form-group">
         <label class="form-label" for="pattern">Pattern (dialplan)</label>
-        <input type="text" id="pattern" name="pattern" required placeholder="_1NXXNXXXXXX"
-               value="{{ form.pattern if form else (route.pattern if route else '') }}">
+        <input type="text" id="pattern" name="pattern" placeholder="_1NXXNXXXXXX" value="{{ form.pattern if form else '' }}">
+        <div class="form-hint">Pattern Asterisk personnalisé (voir la doc du dialplan pour la syntaxe <code>_</code>/<code>X</code>/<code>N</code>/<code>Z</code>).</div>
       </div>
+    </div>
+
+    <script>
+      function setOutboundMode(mode) {
+        document.getElementById('tab-simple').classList.toggle('active', mode === 'simple');
+        document.getElementById('tab-advanced').classList.toggle('active', mode === 'advanced');
+        document.getElementById('mode-simple').classList.toggle('active', mode === 'simple');
+        document.getElementById('mode-advanced').classList.toggle('active', mode === 'advanced');
+        document.querySelectorAll('#mode-simple input[name="simple_patterns"]').forEach(function (el) {
+          el.disabled = (mode !== 'simple');
+        });
+        document.getElementById('pattern').disabled = (mode !== 'advanced');
+      }
+      setOutboundMode('simple');
+    </script>
+    {% else %}
+    <div class="form-group">
+      <label class="form-label" for="pattern">Pattern (dialplan)</label>
+      <input type="text" id="pattern" name="pattern" required placeholder="_1NXXNXXXXXX"
+             value="{{ form.pattern if form else route.pattern }}">
+    </div>
+    {% endif %}
+
+    <div class="form-row">
       <div class="form-group">
         <label class="form-label" for="trunk_id">Trunk</label>
         <select id="trunk_id" name="trunk_id" required>

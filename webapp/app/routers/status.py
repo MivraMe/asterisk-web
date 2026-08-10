@@ -50,3 +50,12 @@ async def active_calls():
 async def reload_config(db: AsyncSession = Depends(get_db)):
     await regenerate_and_reload(db, reason="manual POST /api/reload")
     return {"status": "reloaded"}
+
+
+@router.post("/page")
+async def page_all():
+    try:
+        await ami.page_all()
+    except (AMIError, TimeoutError) as exc:
+        raise HTTPException(status_code=503, detail=f"AMI unavailable: {exc}") from exc
+    return {"status": "paging"}

@@ -1,10 +1,10 @@
 ; ============================================================
 ; GENERATED FILE — do not edit by hand.
 ; Rendered by app/config_generator.py from the "extensions", "trunks",
-; "inbound_routes" and "outbound_routes" tables, in full, every time. Any
-; manual edit is lost the next time ANY extension, trunk or route is
-; created/updated/deleted anywhere in the management UI — not just when
-; this specific record changes.
+; "ring_groups", "inbound_routes" and "outbound_routes" tables, in full,
+; every time. Any manual edit is lost the next time ANY extension, trunk or
+; route is created/updated/deleted anywhere in the management UI — not just
+; when this specific record changes.
 ; ============================================================
 
 {% macro dial_action(dtype, dvalue) %}
@@ -12,7 +12,7 @@
  same => n,Dial(PJSIP/{{ dvalue }},20)
  same => n,Voicemail({{ dvalue }}@default,u)
 {% elif dtype == 'ring_group' %}
- same => n,Dial({% for e in dvalue.split(',') %}PJSIP/{{ e.strip() }}{% if not loop.last %}&{% endif %}{% endfor %},20)
+ same => n,Goto(ringgroup-{{ dvalue }},s,1)
 {% elif dtype == 'voicemail' %}
  same => n,Voicemail({{ dvalue }}@default,u)
 {% else %}
@@ -28,13 +28,29 @@ clearglobalvars = no
 [globals]
 
 ; ------------------------------------------------------------------
-; Internal — extension-to-extension dialing, own-mailbox access
+; Internal — extension-to-extension dialing, own-mailbox access,
+; follow-me/call forwarding, paging
 ; ------------------------------------------------------------------
 [internal]
 {% for ext in extensions %}
 exten => {{ ext.extension }},1,NoOp(Call to {{ ext.extension }})
- same => n,Dial(PJSIP/{{ ext.extension }},20)
+ same => n,Dial(PJSIP/{{ ext.extension }},{{ ext.follow_me_timeout if (ext.follow_me_enabled and ext.follow_me_numbers) else 20 }})
  same => n,GotoIf($["${DIALSTATUS}" = "ANSWER"]?end)
+{% if ext.follow_me_enabled and ext.follow_me_numbers %}
+{% if ext.follow_me_strategy == 'simultaneous' %}
+; Follow-me (simultaneous) — dials the desk phone's own outbound route for
+; each external number via a Local channel, so trunk selection/failover
+; reuses the normal outbound routing below instead of hardcoding a trunk.
+ same => n,Dial({% for num in ext.follow_me_numbers %}Local/{{ num }}@internal/n{% if not loop.last %}&{% endif %}{% endfor %},20)
+ same => n,GotoIf($["${DIALSTATUS}" = "ANSWER"]?end)
+{% else %}
+; Follow-me (sequential) — external numbers rung one at a time, in order.
+{% for num in ext.follow_me_numbers %}
+ same => n,Dial(Local/{{ num }}@internal/n,20)
+ same => n,GotoIf($["${DIALSTATUS}" = "ANSWER"]?end)
+{% endfor %}
+{% endif %}
+{% endif %}
 {% if ext.voicemail_enabled %}
  same => n,Voicemail({{ ext.extension }}@default,u)
 {% else %}
@@ -51,6 +67,19 @@ exten => *98,1,NoOp(Check voicemail, prompt for mailbox)
  same => n,VoiceMailMain()
  same => n,Hangup()
 
+; Paging/intercom — one-way multicast RTP to phones listening on the
+; standard page-group address (confirmed working with Polycom phones:
+; 224.0.1.116:5001, channel 1 = normal priority). Dial *80 from any phone,
+; or trigger it from the dashboard's "Page all" button (AMI Originate of
+; Local/*80@internal). Channels 24/25 (priority/emergency, Polycom
+; convention) aren't wired up — duplicate this extension on a different
+; multicast port if you need them.
+exten => *80,1,NoOp(Page all)
+ same => n,Answer()
+ same => n,Wait(1)
+ same => n,Dial(MulticastRTP/basic/224.0.1.116:5001/ulaw,10)
+ same => n,Hangup()
+
 ; ------------------------------------------------------------------
 ; Outbound routing — patterns matched in ascending priority, first
 ; available trunk that answers wins; falls through to the next on failure.
@@ -64,6 +93,26 @@ exten => {{ pattern }},1,NoOp(Outbound match {{ pattern }})
 {% endfor %}
  same => n,Congestion()
  same => n(outdone),Hangup()
+
+{% endfor %}
+; ------------------------------------------------------------------
+; Ring groups
+; ------------------------------------------------------------------
+{% for rg in ring_groups %}
+[ringgroup-{{ rg.name }}]
+exten => s,1,NoOp(Ring group {{ rg.name }} ({{ rg.strategy }}))
+{% if rg.strategy == 'hunt' %}
+{% for member in rg.extensions %}
+ same => n,Dial(PJSIP/{{ member }},{{ rg.ring_timeout }})
+ same => n,GotoIf($["${DIALSTATUS}" = "ANSWER"]?done)
+{% endfor %}
+{% else %}
+{% set members = rg.extensions|shuffle if rg.strategy == 'random' else rg.extensions %}
+ same => n,Dial({% for member in members %}PJSIP/{{ member }}{% if not loop.last %}&{% endif %}{% endfor %},{{ rg.ring_timeout }})
+ same => n,GotoIf($["${DIALSTATUS}" = "ANSWER"]?done)
+{% endif %}
+{{ dial_action(rg.fallback_destination_type, rg.fallback_destination_value or '') }}
+ same => n(done),Hangup()
 
 {% endfor %}
 ; ------------------------------------------------------------------
