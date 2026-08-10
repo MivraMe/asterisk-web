@@ -12,7 +12,7 @@
 <div class="table-wrapper">
   <div class="table-scroll">
     <table>
-      <thead><tr><th>Nom</th><th>Fournisseur</th><th>Serveur SIP</th><th>DIDs</th><th>État</th><th></th></tr></thead>
+      <thead><tr><th>Nom</th><th>Fournisseur</th><th>Serveur SIP</th><th>DIDs</th><th>Codecs</th><th>État</th><th></th></tr></thead>
       <tbody>
         {% for trunk in trunks %}
         <tr id="trunk-row-{{ trunk.id }}">
@@ -20,6 +20,7 @@
           <td>{{ trunk.provider }}</td>
           <td>{{ trunk.sip_server }}</td>
           <td>{{ (trunk.did_numbers or [])|join(', ') or '—' }}</td>
+          <td>{{ (trunk.codecs or [])|join(',') or 'défaut' }}</td>
           <td>{% if trunk.enabled %}<span class="badge badge-ok">Actif</span>{% else %}<span class="badge badge-unknown">Désactivé</span>{% endif %}</td>
           <td style="text-align:right; white-space:nowrap">
             <a class="btn btn-secondary btn-sm" href="/trunks/{{ trunk.id }}/edit">Éditer</a>
@@ -31,7 +32,7 @@
           </td>
         </tr>
         {% else %}
-        <tr><td colspan="6" class="empty-state">Aucun trunk configuré.</td></tr>
+        <tr><td colspan="7" class="empty-state">Aucun trunk configuré.</td></tr>
         {% endfor %}
       </tbody>
     </table>

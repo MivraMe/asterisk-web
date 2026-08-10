@@ -35,6 +35,26 @@ Jinja2 → reload sélectif via AMI (`module reload res_pjsip.so`, `dialplan
 reload`, `voicemail reload`). Pas de restart de conteneur, pas de coupure des appels
 en cours.
 
+**Important — la régénération est toujours totale, pas incrémentale.** Les
+3 fichiers sont entièrement réécrits depuis l'état complet de la DB à
+*chaque* déclenchement, pas seulement la section touchée. Concrètement :
+toute modification manuelle faite directement dans `pjsip.conf`,
+`extensions.conf` ou `voicemail.conf` (ou via la CLI Asterisk, `asterisk
+-rx "..."`) sera perdue dès qu'une extension, un trunk ou une route
+*quelconque* est créé/modifié/supprimé via l'UI ou l'API — même un
+enregistrement complètement différent de celui que vous avez édité à la
+main. C'est voulu (source de vérité unique = DB), mais ça peut surprendre
+en debug. Les seuls déclencheurs possibles sont : POST/PUT/DELETE sur
+`/api/extensions`, `/api/trunks`, `/api/inbound-routes`,
+`/api/outbound-routes` (ou les formulaires équivalents de l'UI), et
+`POST /api/reload`. Aucune régénération périodique/planifiée n'existe, et
+les commandes CLI/AMI envoyées directement à Asterisk (`pjsip send
+register`, etc.) ne peuvent pas déclencher de régénération — le webapp n'a
+aucune visibilité sur ces actions. Chaque régénération logge son
+déclencheur (`Regenerating ... (reason: extension 101 updated)`, etc.)
+dans les logs du conteneur `webapp` — utile pour retracer une écrasement
+inattendu.
+
 Le CDR fonctionne à l'inverse : Asterisk (`cdr_pgsql`) écrit directement
 dans la table `cdr` de la même base Postgres ; le webapp ne fait que lire.
 

@@ -57,6 +57,14 @@
     </div>
 
     <div class="form-group">
+      <label class="form-label" for="codecs">Codecs (override, séparés par des virgules)</label>
+      <input type="text" id="codecs" name="codecs" placeholder="opus,g722,ulaw,alaw"
+             value="{{ form.codecs if form else ((trunk.codecs or [])|join(',') if trunk else '') }}">
+      <div class="form-hint">Laisser vide pour la valeur par défaut (opus,g722,ulaw,alaw). À utiliser si ce
+        provider/compte n'accepte qu'un sous-ensemble de codecs (ex. G722 seulement).</div>
+    </div>
+
+    <div class="form-group">
       <label class="form-label">
         <input type="checkbox" name="enabled" value="true" style="width:auto"
                {% if (form.enabled if form else (trunk.enabled if trunk else true)) %}checked{% endif %}>

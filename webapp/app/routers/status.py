@@ -48,5 +48,5 @@ async def active_calls():
 
 @router.post("/reload")
 async def reload_config(db: AsyncSession = Depends(get_db)):
-    await regenerate_and_reload(db)
+    await regenerate_and_reload(db, reason="manual POST /api/reload")
     return {"status": "reloaded"}

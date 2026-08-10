@@ -1,8 +1,9 @@
 ; ============================================================
 ; GENERATED FILE — do not edit by hand.
 ; Rendered by app/config_generator.py from the "extensions" and "trunks"
-; tables. Any manual change here is overwritten on the next save in the
-; management UI.
+; tables, in full, every time. Any manual edit is lost the next time ANY
+; extension, trunk or route is created/updated/deleted anywhere in the
+; management UI — not just when this specific record changes.
 ; ============================================================
 
 [transport-udp]
@@ -19,7 +20,7 @@ bind = 0.0.0.0:5060
 type = endpoint
 transport = transport-udp
 disallow = all
-allow = ulaw,alaw
+allow = opus,g722,ulaw,alaw
 direct_media = no
 rtp_symmetric = yes
 force_rport = yes
@@ -38,6 +39,9 @@ context = {{ ext.context }}
 auth = auth{{ ext.extension }}
 aors = {{ ext.extension }}
 callerid = {{ ext.display_name or ext.extension }} <{{ ext.extension }}>
+{% if ext.voicemail_enabled %}
+mailboxes = {{ ext.extension }}@default
+{% endif %}
 
 [auth{{ ext.extension }}]
 type = auth
@@ -61,7 +65,7 @@ type = endpoint
 transport = transport-udp
 context = from-trunk-{{ trunk.name }}
 disallow = all
-allow = ulaw,alaw
+allow = {{ trunk.codecs|join(',') if trunk.codecs else 'opus,g722,ulaw,alaw' }}
 outbound_auth = auth_trunk_{{ trunk.name }}
 aors = trunk_{{ trunk.name }}
 from_user = {{ trunk.username }}

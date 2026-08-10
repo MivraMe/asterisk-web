@@ -66,6 +66,9 @@ class TrunkBase(BaseModel):
     did_numbers: list[str] = Field(default_factory=list)
     max_channels: int = 5
     enabled: bool = True
+    # Overrides the default codec offer (opus,g722,ulaw,alaw) for this trunk.
+    # None/empty means "use the default".
+    codecs: list[str] | None = None
 
 
 class TrunkCreate(TrunkBase):
@@ -80,6 +83,7 @@ class TrunkUpdate(BaseModel):
     did_numbers: list[str] | None = None
     max_channels: int | None = None
     enabled: bool | None = None
+    codecs: list[str] | None = None
 
 
 class TrunkOut(TrunkBase):

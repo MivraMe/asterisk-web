@@ -70,15 +70,23 @@ def _write(name: str, content: str) -> None:
     logger.info("Wrote %s (%d bytes)", dest, len(content))
 
 
-async def regenerate_configs(db: AsyncSession) -> None:
+async def regenerate_configs(db: AsyncSession, reason: str = "unspecified") -> None:
+    # Every call re-renders all three files in full from current DB state —
+    # there is no partial/incremental regeneration. Any manual edit to
+    # pjsip.conf/extensions.conf/voicemail.conf is lost the next time *any*
+    # extension, trunk, inbound route or outbound route is created, updated
+    # or deleted (or POST /api/reload is called) — not just when the record
+    # you edited around changes. The reason is logged so it's traceable in
+    # the webapp's own logs which action caused a given regeneration.
+    logger.info("Regenerating pjsip.conf/extensions.conf/voicemail.conf from DB state (reason: %s)", reason)
     data = await _load_data(db)
     _write("pjsip.conf", _env.get_template("pjsip.conf.j2").render(**data))
     _write("extensions.conf", _env.get_template("extensions.conf.j2").render(**data))
     _write("voicemail.conf", _env.get_template("voicemail.conf.j2").render(**data))
 
 
-async def regenerate_and_reload(db: AsyncSession) -> None:
-    await regenerate_configs(db)
+async def regenerate_and_reload(db: AsyncSession, reason: str = "unspecified") -> None:
+    await regenerate_configs(db, reason=reason)
     try:
         await ami.pjsip_reload()
         await ami.dialplan_reload()

@@ -49,6 +49,10 @@ class Trunk(Base):
     username: Mapped[str] = mapped_column(Text, nullable=False)
     secret: Mapped[str] = mapped_column(Text, nullable=False)
     did_numbers: Mapped[list[str] | None] = mapped_column(ARRAY(String))
+    # Overrides the global default codec offer (opus,g722,ulaw,alaw) for this
+    # trunk's endpoint — some providers/accounts only accept a subset (e.g. a
+    # VoIP.ms account limited to G722). NULL means "use the default".
+    codecs: Mapped[list[str] | None] = mapped_column(ARRAY(String))
     max_channels: Mapped[int] = mapped_column(Integer, default=5)
     enabled: Mapped[bool] = mapped_column(Boolean, default=True)
 

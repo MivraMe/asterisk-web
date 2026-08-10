@@ -175,6 +175,11 @@ def _parse_dids(raw: str) -> list[str]:
     return [d.strip() for d in raw.split(",") if d.strip()]
 
 
+def _parse_codecs(raw: str) -> list[str] | None:
+    codecs = [c.strip().lower() for c in raw.split(",") if c.strip()]
+    return codecs or None
+
+
 @router.get("/trunks")
 async def trunks_list(request: Request, db: AsyncSession = Depends(get_db)):
     trunks = await crud.list_trunks(db)
@@ -195,13 +200,15 @@ async def trunk_new_submit(
     username: str = Form(...),
     secret: str = Form(...),
     did_numbers: str = Form(""),
+    codecs: str = Form(""),
     max_channels: int = Form(5),
     enabled: str | None = Form(None),
     db: AsyncSession = Depends(get_db),
 ):
     form = {
         "name": name, "provider": provider, "sip_server": sip_server, "username": username,
-        "did_numbers": _parse_dids(did_numbers), "max_channels": max_channels, "enabled": bool(enabled),
+        "did_numbers": _parse_dids(did_numbers), "codecs": _parse_codecs(codecs),
+        "max_channels": max_channels, "enabled": bool(enabled),
     }
     try:
         payload = TrunkCreate(secret=secret, **form)
@@ -228,13 +235,14 @@ async def trunk_edit_submit(
     username: str = Form(...),
     secret: str = Form(""),
     did_numbers: str = Form(""),
+    codecs: str = Form(""),
     max_channels: int = Form(5),
     enabled: str | None = Form(None),
     db: AsyncSession = Depends(get_db),
 ):
     form = {
         "provider": provider, "sip_server": sip_server, "username": username,
-        "secret": secret or None, "did_numbers": _parse_dids(did_numbers),
+        "secret": secret or None, "did_numbers": _parse_dids(did_numbers), "codecs": _parse_codecs(codecs),
         "max_channels": max_channels, "enabled": bool(enabled),
     }
     try:

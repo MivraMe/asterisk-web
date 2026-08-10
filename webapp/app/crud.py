@@ -48,7 +48,7 @@ async def create_extension(db: AsyncSession, data: dict) -> Extension:
     db.add(ext)
     await db.commit()
     await db.refresh(ext)
-    await regenerate_and_reload(db)
+    await regenerate_and_reload(db, reason=f"extension {ext.extension} created")
     return ext
 
 
@@ -59,15 +59,16 @@ async def update_extension(db: AsyncSession, extension_id: int, data: dict) -> E
             setattr(ext, k, v)
     await db.commit()
     await db.refresh(ext)
-    await regenerate_and_reload(db)
+    await regenerate_and_reload(db, reason=f"extension {ext.extension} updated")
     return ext
 
 
 async def delete_extension(db: AsyncSession, extension_id: int) -> None:
     ext = await get_extension(db, extension_id)
+    number = ext.extension
     await db.delete(ext)
     await db.commit()
-    await regenerate_and_reload(db)
+    await regenerate_and_reload(db, reason=f"extension {number} deleted")
 
 
 # ------------------------------------------------------------------ #
@@ -93,7 +94,7 @@ async def create_trunk(db: AsyncSession, data: dict) -> Trunk:
     db.add(trunk)
     await db.commit()
     await db.refresh(trunk)
-    await regenerate_and_reload(db)
+    await regenerate_and_reload(db, reason=f"trunk {trunk.name} created")
     return trunk
 
 
@@ -104,15 +105,16 @@ async def update_trunk(db: AsyncSession, trunk_id: int, data: dict) -> Trunk:
             setattr(trunk, k, v)
     await db.commit()
     await db.refresh(trunk)
-    await regenerate_and_reload(db)
+    await regenerate_and_reload(db, reason=f"trunk {trunk.name} updated")
     return trunk
 
 
 async def delete_trunk(db: AsyncSession, trunk_id: int) -> None:
     trunk = await get_trunk(db, trunk_id)
+    name = trunk.name
     await db.delete(trunk)
     await db.commit()
-    await regenerate_and_reload(db)
+    await regenerate_and_reload(db, reason=f"trunk {name} deleted")
 
 
 # ------------------------------------------------------------------ #
@@ -135,7 +137,7 @@ async def create_inbound_route(db: AsyncSession, data: dict) -> InboundRoute:
     db.add(route)
     await db.commit()
     await db.refresh(route)
-    await regenerate_and_reload(db)
+    await regenerate_and_reload(db, reason=f"inbound route {route.did_number} created")
     return route
 
 
@@ -146,15 +148,16 @@ async def update_inbound_route(db: AsyncSession, route_id: int, data: dict) -> I
             setattr(route, k, v)
     await db.commit()
     await db.refresh(route)
-    await regenerate_and_reload(db)
+    await regenerate_and_reload(db, reason=f"inbound route {route.did_number} updated")
     return route
 
 
 async def delete_inbound_route(db: AsyncSession, route_id: int) -> None:
     route = await get_inbound_route(db, route_id)
+    did = route.did_number
     await db.delete(route)
     await db.commit()
-    await regenerate_and_reload(db)
+    await regenerate_and_reload(db, reason=f"inbound route {did} deleted")
 
 
 # ------------------------------------------------------------------ #
@@ -179,7 +182,7 @@ async def create_outbound_route(db: AsyncSession, data: dict) -> OutboundRoute:
     db.add(route)
     await db.commit()
     await db.refresh(route)
-    await regenerate_and_reload(db)
+    await regenerate_and_reload(db, reason=f"outbound route {route.pattern} created")
     return route
 
 
@@ -190,12 +193,13 @@ async def update_outbound_route(db: AsyncSession, route_id: int, data: dict) -> 
             setattr(route, k, v)
     await db.commit()
     await db.refresh(route)
-    await regenerate_and_reload(db)
+    await regenerate_and_reload(db, reason=f"outbound route {route.pattern} updated")
     return route
 
 
 async def delete_outbound_route(db: AsyncSession, route_id: int) -> None:
     route = await get_outbound_route(db, route_id)
+    pattern = route.pattern
     await db.delete(route)
     await db.commit()
-    await regenerate_and_reload(db)
+    await regenerate_and_reload(db, reason=f"outbound route {pattern} deleted")
