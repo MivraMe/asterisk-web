@@ -57,12 +57,14 @@ RUN ./configure --with-pjproject-bundled --with-jansson-bundled --with-crypto --
 # libpq-dev which we installed above so configure detects it), res_ari*
 # (default-enabled), res_musiconhold/app_dial/app_queue (default-enabled).
 # We only need to explicitly flip cdr_pgsql (and its realtime cousin) on,
-# plus pull in a minimal English sound/MOH package so voicemail prompts and
-# hold music work out of the box.
+# plus pull in English and French sound/MOH packages — the IVR sets
+# CHANNEL(language)=fr, and Asterisk transparently falls back to the
+# English set for anything not present in the French pack.
 RUN make menuselect.makeopts \
     && menuselect/menuselect --enable cdr_pgsql \
                               --enable res_config_pgsql \
                               --enable CORE-SOUNDS-EN-ULAW \
+                              --enable CORE-SOUNDS-FR-ULAW \
                               --enable MOH-OPSOUND-ULAW \
                               menuselect.makeopts \
     && make -j1 third-party \

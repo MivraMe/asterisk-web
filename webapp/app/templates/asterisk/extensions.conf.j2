@@ -136,25 +136,39 @@ exten => s,1,NoOp(Ring group {{ rg.name }} ({{ rg.strategy }}))
 ; IVR — single auto-attendant, reachable from any inbound route with
 ; destination_type=ivr. Callers who know their party's extension can dial
 ; it immediately (direct-dial is just "include => internal" below); press
-; 1 for the name directory (app_directory, spelled against voicemail.conf
-; — only extensions with voicemail_enabled show up there); no input within
-; the configured timeout falls back to the configured destination.
+; 1 for the directory submenu (search by name, or browse a spoken list);
+; no input within the configured timeout falls back to the configured
+; destination. Speaks French (CHANNEL(language)=fr, CORE-SOUNDS-FR-ULAW) —
+; Asterisk transparently falls back to the English set for any prompt the
+; French pack doesn't ship.
+;
+; Greeting prompts (vm-enter-num-to-call, vm-press, dir-welcome,
+; pbx-invalid) were confirmed against a real compiled Asterisk 22 —
+; present in both CORE-SOUNDS-EN-ULAW and CORE-SOUNDS-FR-ULAW, and
+; vm-enter-num-to-call's usage matches Asterisk's own sample dialplan
+; (configs/samples/extensions.conf.sample, the "acme-incoming" example)
+; for exactly this "you may dial now" cue. Directory() plays its own
+; dir-welcome intro automatically when invoked (confirmed in
+; apps/app_directory.c) — it is intentionally NOT played again by
+; [ivr-directory] before calling it, to avoid hearing it twice.
 ;
 ; Note: because "1" is also a valid prefix of some multi-digit extensions,
 ; Asterisk will briefly wait for more digits after a caller presses 1
-; before committing to the directory (standard DTMF overlap behavior, not
-; a bug) — same as this same ambiguity would exist in any auto-attendant
-; that recycles "1" as both a menu option and a possible extension prefix.
+; before committing to the directory submenu (standard DTMF overlap
+; behavior, not a bug) — same as this ambiguity would exist in any
+; auto-attendant that recycles "1" as both a menu option and a possible
+; extension prefix.
 ; ------------------------------------------------------------------
 [ivr]
 exten => s,1,Answer()
+ same => n,Set(CHANNEL(language)=fr)
  same => n,Wait(1)
- same => n,Background(dir-welcome)
+ same => n,Background(vm-enter-num-to-call)
+ same => n,Background(vm-press)
+ same => n,SayDigits(1)
  same => n,WaitExten({{ ivr_settings.timeout_seconds }})
 
-exten => 1,1,NoOp(IVR: directory)
- same => n,Directory(default,internal)
- same => n,Goto(s,1)
+exten => 1,1,Goto(ivr-directory,s,1)
 
 exten => i,1,NoOp(IVR: invalid entry)
  same => n,Playback(pbx-invalid)
@@ -165,6 +179,80 @@ exten => t,1,NoOp(IVR: timeout, falling back)
  same => n,Hangup()
 
 include => internal
+
+; ------------------------------------------------------------------
+; IVR directory submenu — search by name (spelled, app_directory) or
+; browse a spoken list of the same pool (voicemail-enabled extensions).
+; ------------------------------------------------------------------
+[ivr-directory]
+exten => s,1,Background(vm-press)
+ same => n,SayDigits(1)
+ same => n,Background(vm-press)
+ same => n,SayDigits(2)
+ same => n,WaitExten({{ ivr_settings.timeout_seconds }})
+
+exten => 1,1,NoOp(IVR directory: search by name)
+ same => n,Directory(default,internal)
+ same => n,Goto(ivr,s,1)
+
+exten => 2,1,Goto(ivr-directory-list,s,1)
+
+exten => i,1,NoOp(IVR directory: invalid entry)
+ same => n,Playback(pbx-invalid)
+ same => n,Goto(s,1)
+
+exten => t,1,NoOp(IVR directory: timeout)
+ same => n,Goto(ivr,s,1)
+
+; ------------------------------------------------------------------
+; IVR directory — browsable list. Voicemail-enabled extensions,
+; alphabetical by display name (see config_generator.py's directory_list),
+; capped at 9 so each entry gets a single selection digit. Each entry
+; announces the caller's own recorded name (dial *97 -> mailbox options ->
+; record your name) if they've recorded one, else SayDigits(extension) as
+; a guaranteed fallback. Background() is DTMF-interruptible, so pressing a
+; digit as soon as you hear the right entry should route immediately
+; rather than waiting for the rest of the list to finish (verify with a
+; real call).
+;
+; NOTE: /var/spool/asterisk matches astspooldir in
+; asterisk/etc-asterisk/asterisk.conf — update here if that ever changes.
+; The path below (.../voicemail/<context>/<mailbox>/greet) is confirmed
+; directly from apps/app_voicemail.c's own construction of this exact
+; filename: snprintf(prefile, ..., "%s%s/%s/greet", VM_SPOOL_DIR,
+; vmu->context, vms->username). The .wav extension checked by STAT() is a
+; reasoned choice, not the same 1:1 source confirmation as the path: it
+; relies on Asterisk recording a greeting into every format listed in
+; voicemail.conf's [general] "format" setting (currently wav49|wav) —
+; "wav" being explicitly one of those, this should exist whenever a name
+; has been recorded — but hasn't been confirmed against an actual
+; recording (needs a real SIP client to walk the *97 menu, impractical to
+; script in a sandbox with no phone). If recorded names are never picked
+; up in practice, check what extension actually landed on disk
+; (`find /var/spool/asterisk/voicemail -type f`) and fix the STAT() call
+; below.
+; ------------------------------------------------------------------
+[ivr-directory-list]
+exten => s,1,NoOp(IVR directory list: {{ directory_list|length }} entries)
+{% for ext in directory_list %}
+ same => n,GotoIf($["${STAT(e,/var/spool/asterisk/voicemail/default/{{ ext.extension }}/greet.wav)}" = "1"]?name{{ loop.index }})
+ same => n,SayDigits({{ ext.extension }})
+ same => n,Goto(pressnum{{ loop.index }})
+ same => n(name{{ loop.index }}),Background(/var/spool/asterisk/voicemail/default/{{ ext.extension }}/greet)
+ same => n(pressnum{{ loop.index }}),Background(vm-press)
+ same => n,SayDigits({{ loop.index }})
+{% endfor %}
+ same => n,WaitExten({{ ivr_settings.timeout_seconds }})
+
+{% for ext in directory_list %}
+exten => {{ loop.index }},1,Goto(internal,{{ ext.extension }},1)
+{% endfor %}
+exten => i,1,NoOp(IVR directory list: invalid entry)
+ same => n,Playback(pbx-invalid)
+ same => n,Goto(s,1)
+
+exten => t,1,NoOp(IVR directory list: timeout)
+ same => n,Goto(ivr-directory,s,1)
 
 ; ------------------------------------------------------------------
 ; Inbound — one context per trunk, routed by DID

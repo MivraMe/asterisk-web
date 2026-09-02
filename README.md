@@ -161,13 +161,23 @@ webapp), `app_directory` (répertoire par nom, voir IVR ci-dessous) et
 ## IVR (répertoire / accueil automatique)
 
 Un seul menu d'accueil, configurable sur la page *IVR* de l'interface et
-utilisable comme destination sur n'importe quelle route entrante :
+utilisable comme destination sur n'importe quelle route entrante. Les
+prompts sont en **français** (`CORE-SOUNDS-FR-ULAW`, `CHANNEL(language)=fr`
+posé dès `Answer()`) — Asterisk retombe automatiquement sur le prompt
+anglais pour tout ce que le paquet français ne couvre pas.
 
 - l'appelant qui connaît le numéro de poste peut le composer immédiatement
   (dial-through direct, aucune touche à presser) ;
-- appuyer sur **1** ouvre le répertoire par nom (`Directory()`, épelle
-  contre les entrées `voicemail.conf` — seules les extensions avec
-  messagerie vocale activée y apparaissent) ;
+- appuyer sur **1** ouvre le sous-menu répertoire :
+  - **1** = recherche par nom épelé (`Directory()`, contre les entrées
+    `voicemail.conf` — seules les extensions avec messagerie vocale
+    activée y apparaissent) ;
+  - **2** = liste parlée, plafonnée à 9 entrées (une par chiffre),
+    triée alphabétiquement par nom. Chaque entrée annonce le nom
+    enregistré par la personne (`*97` → options de la boîte vocale →
+    enregistrer son nom) si disponible, sinon le numéro de poste en
+    secours ; appuyer sur le chiffre annoncé compose directement cette
+    extension ;
 - sans touche pressée dans le délai configuré, l'appel bascule vers le
   fallback choisi (extension, groupe de sonnerie, boîte vocale ou
   raccrocher).
@@ -177,7 +187,8 @@ chiffres, Asterisk attend brièvement d'autres chiffres après un "1" avant
 de trancher (comportement standard de collecte DTMF, pas un bug — le même
 compromis existe dans n'importe quel IVR qui réutilise "1" comme option de
 menu). Aucun enregistrement d'accueil personnalisé n'est pris en charge
-pour l'instant (utilise le prompt générique `dir-welcome` d'Asterisk).
+pour l'instant (utilise les prompts génériques d'Asterisk : `dir-welcome`,
+`vm-enter-num-to-call`, `vm-press`).
 
 ## Sécurité
 

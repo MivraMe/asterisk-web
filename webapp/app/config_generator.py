@@ -57,6 +57,22 @@ async def _load_data(db: AsyncSession) -> dict:
         await db.execute(select(OutboundRoute).order_by(OutboundRoute.pattern, OutboundRoute.priority))
     ).scalars().all()
 
+    # IVR "browse a list" mode — voicemail-enabled extensions, alphabetical
+    # by display name (a caller scanning a spoken list wants to recognize a
+    # name, not stumble onto an extension number), capped at 9 so each
+    # entry gets a single selection digit (1-9).
+    directory_pool = sorted(
+        (e for e in extensions if e.voicemail_enabled),
+        key=lambda e: (e.display_name or e.extension).lower(),
+    )
+    directory_list = directory_pool[:9]
+    if len(directory_pool) > 9:
+        logger.warning(
+            "IVR directory list has %d voicemail-enabled extensions, only the first 9 "
+            "(alphabetically) are reachable by the browse-list menu: %s",
+            len(directory_pool), ", ".join(e.extension for e in directory_pool[9:]),
+        )
+
     trunk_by_id = {t.id: t for t in trunks}
     outbound_by_pattern = []
     for pattern, group in groupby(outbound_routes, key=lambda r: r.pattern):
@@ -80,6 +96,7 @@ async def _load_data(db: AsyncSession) -> dict:
         "trunks": trunks,
         "ring_groups": ring_groups,
         "ivr_settings": ivr_settings,
+        "directory_list": directory_list,
         "inbound_routes": inbound_routes,
         "outbound_by_pattern": outbound_by_pattern,
         "voicemail_from_email": settings.voicemail_from_email,
