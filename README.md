@@ -155,7 +155,29 @@ Compilé depuis les sources (LTS courante — voir
 souvent daté. Modules activés : `chan_pjsip` + `res_pjsip*`, `app_voicemail`,
 `cdr_pgsql`, `res_musiconhold`, `app_dial`, `app_queue`, `res_ari*` (ARI
 compilé mais désactivé par défaut dans `http.conf` — AMI suffit pour le
-webapp).
+webapp), `app_directory` (répertoire par nom, voir IVR ci-dessous) et
+`chan_rtp` (paging multicast).
+
+## IVR (répertoire / accueil automatique)
+
+Un seul menu d'accueil, configurable sur la page *IVR* de l'interface et
+utilisable comme destination sur n'importe quelle route entrante :
+
+- l'appelant qui connaît le numéro de poste peut le composer immédiatement
+  (dial-through direct, aucune touche à presser) ;
+- appuyer sur **1** ouvre le répertoire par nom (`Directory()`, épelle
+  contre les entrées `voicemail.conf` — seules les extensions avec
+  messagerie vocale activée y apparaissent) ;
+- sans touche pressée dans le délai configuré, l'appel bascule vers le
+  fallback choisi (extension, groupe de sonnerie, boîte vocale ou
+  raccrocher).
+
+Comme "1" est aussi un préfixe valide de certaines extensions à plusieurs
+chiffres, Asterisk attend brièvement d'autres chiffres après un "1" avant
+de trancher (comportement standard de collecte DTMF, pas un bug — le même
+compromis existe dans n'importe quel IVR qui réutilise "1" comme option de
+menu). Aucun enregistrement d'accueil personnalisé n'est pris en charge
+pour l'instant (utilise le prompt générique `dir-welcome` d'Asterisk).
 
 ## Sécurité
 

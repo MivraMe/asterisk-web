@@ -84,13 +84,26 @@ class RingGroup(Base):
     fallback_destination_value: Mapped[str | None] = mapped_column(Text)
 
 
+class IvrSettings(Base):
+    """Singleton (always id=1) — a single auto-attendant: callers can dial
+    a known extension immediately, press 1 for the name directory
+    (app_directory against voicemail.conf), or fall back after a timeout."""
+
+    __tablename__ = "ivr_settings"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    timeout_seconds: Mapped[int] = mapped_column(Integer, default=8)
+    fallback_destination_type: Mapped[str] = mapped_column(String(20), default="voicemail")  # extension|ring_group|voicemail|hangup
+    fallback_destination_value: Mapped[str | None] = mapped_column(Text)
+
+
 class InboundRoute(Base):
     __tablename__ = "inbound_routes"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     did_number: Mapped[str] = mapped_column(String(20), nullable=False)
     trunk_id: Mapped[int | None] = mapped_column(ForeignKey("trunks.id"))
-    destination_type: Mapped[str] = mapped_column(String(20), nullable=False)  # extension|ring_group|voicemail
+    destination_type: Mapped[str] = mapped_column(String(20), nullable=False)  # extension|ring_group|voicemail|ivr
     destination_value: Mapped[str] = mapped_column(Text, nullable=False)
     time_condition: Mapped[dict | None] = mapped_column(JSONB)
 

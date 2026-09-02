@@ -4,9 +4,9 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 Provider = Literal["voipms", "twilio"]
-DestinationType = Literal["extension", "ring_group", "voicemail"]
+DestinationType = Literal["extension", "ring_group", "voicemail", "ivr"]
 RingStrategy = Literal["ringall", "hunt", "random"]
-FallbackDestinationType = Literal["extension", "voicemail", "hangup"]
+FallbackDestinationType = Literal["extension", "ring_group", "voicemail", "hangup"]
 FollowMeStrategy = Literal["simultaneous", "sequential"]
 
 
@@ -135,6 +135,24 @@ class RingGroupUpdate(BaseModel):
 class RingGroupOut(RingGroupBase):
     model_config = ConfigDict(from_attributes=True)
     id: int
+
+
+# ------------------------------------------------------------------ #
+# IVR (single auto-attendant, singleton settings)                     #
+# ------------------------------------------------------------------ #
+
+class IvrSettingsUpdate(BaseModel):
+    timeout_seconds: int | None = None
+    fallback_destination_type: FallbackDestinationType | None = None
+    fallback_destination_value: str | None = None
+
+
+class IvrSettingsOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    timeout_seconds: int
+    fallback_destination_type: FallbackDestinationType
+    fallback_destination_value: str | None = None
 
 
 # ------------------------------------------------------------------ #

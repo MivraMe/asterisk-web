@@ -13,6 +13,8 @@
  same => n,Voicemail({{ dvalue }}@default,u)
 {% elif dtype == 'ring_group' %}
  same => n,Goto(ringgroup-{{ dvalue }},s,1)
+{% elif dtype == 'ivr' %}
+ same => n,Goto(ivr,s,1)
 {% elif dtype == 'voicemail' %}
  same => n,Voicemail({{ dvalue }}@default,u)
 {% else %}
@@ -130,6 +132,40 @@ exten => s,1,NoOp(Ring group {{ rg.name }} ({{ rg.strategy }}))
  same => n(done),Hangup()
 
 {% endfor %}
+; ------------------------------------------------------------------
+; IVR — single auto-attendant, reachable from any inbound route with
+; destination_type=ivr. Callers who know their party's extension can dial
+; it immediately (direct-dial is just "include => internal" below); press
+; 1 for the name directory (app_directory, spelled against voicemail.conf
+; — only extensions with voicemail_enabled show up there); no input within
+; the configured timeout falls back to the configured destination.
+;
+; Note: because "1" is also a valid prefix of some multi-digit extensions,
+; Asterisk will briefly wait for more digits after a caller presses 1
+; before committing to the directory (standard DTMF overlap behavior, not
+; a bug) — same as this same ambiguity would exist in any auto-attendant
+; that recycles "1" as both a menu option and a possible extension prefix.
+; ------------------------------------------------------------------
+[ivr]
+exten => s,1,Answer()
+ same => n,Wait(1)
+ same => n,Background(dir-welcome)
+ same => n,WaitExten({{ ivr_settings.timeout_seconds }})
+
+exten => 1,1,NoOp(IVR: directory)
+ same => n,Directory(default,internal)
+ same => n,Goto(s,1)
+
+exten => i,1,NoOp(IVR: invalid entry)
+ same => n,Playback(pbx-invalid)
+ same => n,Goto(s,1)
+
+exten => t,1,NoOp(IVR: timeout, falling back)
+{{ dial_action(ivr_settings.fallback_destination_type, ivr_settings.fallback_destination_value or '') }}
+ same => n,Hangup()
+
+include => internal
+
 ; ------------------------------------------------------------------
 ; Inbound — one context per trunk, routed by DID
 ; ------------------------------------------------------------------

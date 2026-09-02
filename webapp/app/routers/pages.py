@@ -18,6 +18,7 @@ from app.schemas import (
     ExtensionUpdate,
     InboundRouteCreate,
     InboundRouteUpdate,
+    IvrSettingsUpdate,
     OutboundRouteCreate,
     OutboundRouteUpdate,
     RingGroupCreate,
@@ -348,6 +349,36 @@ async def ring_group_edit_submit(
         all_extensions = await crud.list_extensions(db)
         return templates.TemplateResponse(request, "pages/ring_group_form.html", {"ring_group": ring_group, "all_extensions": all_extensions, "error": _err(exc)}, status_code=400)
     return RedirectResponse(url="/ring-groups", status_code=303)
+
+
+# ------------------------------------------------------------------ #
+# IVR (single auto-attendant)                                          #
+# ------------------------------------------------------------------ #
+
+@router.get("/ivr")
+async def ivr_settings_page(request: Request, db: AsyncSession = Depends(get_db)):
+    ivr_settings = await crud.get_ivr_settings(db)
+    return templates.TemplateResponse(request, "pages/ivr_settings.html", {"nav_active": "ivr", "ivr_settings": ivr_settings})
+
+
+@router.post("/ivr")
+async def ivr_settings_submit(
+    request: Request,
+    timeout_seconds: int = Form(8),
+    fallback_destination_type: str = Form("voicemail"),
+    fallback_destination_value: str = Form(""),
+    db: AsyncSession = Depends(get_db),
+):
+    try:
+        payload = IvrSettingsUpdate(
+            timeout_seconds=timeout_seconds, fallback_destination_type=fallback_destination_type,
+            fallback_destination_value=fallback_destination_value or None,
+        )
+        await crud.update_ivr_settings(db, payload.model_dump(exclude_unset=True))
+    except ValidationError as exc:
+        ivr_settings = await crud.get_ivr_settings(db)
+        return templates.TemplateResponse(request, "pages/ivr_settings.html", {"ivr_settings": ivr_settings, "error": _err(exc)}, status_code=400)
+    return RedirectResponse(url="/ivr", status_code=303)
 
 
 # ------------------------------------------------------------------ #

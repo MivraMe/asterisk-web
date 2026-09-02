@@ -5,7 +5,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config_generator import regenerate_and_reload
-from app.models import Extension, InboundRoute, OutboundRoute, RingGroup, Trunk
+from app.models import Extension, InboundRoute, IvrSettings, OutboundRoute, RingGroup, Trunk
 
 
 class NotFoundError(Exception):
@@ -161,6 +161,31 @@ async def delete_ring_group(db: AsyncSession, ring_group_id: int) -> None:
     await db.delete(rg)
     await db.commit()
     await regenerate_and_reload(db, reason=f"ring group {name} deleted")
+
+
+# ------------------------------------------------------------------ #
+# IVR settings (singleton, always id=1)                                #
+# ------------------------------------------------------------------ #
+
+async def get_ivr_settings(db: AsyncSession) -> IvrSettings:
+    settings = (await db.execute(select(IvrSettings))).scalar_one_or_none()
+    if settings is None:
+        settings = IvrSettings()
+        db.add(settings)
+        await db.commit()
+        await db.refresh(settings)
+    return settings
+
+
+async def update_ivr_settings(db: AsyncSession, data: dict) -> IvrSettings:
+    settings = await get_ivr_settings(db)
+    for k, v in data.items():
+        if v is not None:
+            setattr(settings, k, v)
+    await db.commit()
+    await db.refresh(settings)
+    await regenerate_and_reload(db, reason="IVR settings updated")
+    return settings
 
 
 # ------------------------------------------------------------------ #

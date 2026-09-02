@@ -29,10 +29,11 @@
       <div class="form-group">
         <label class="form-label" for="destination_type">Type de destination</label>
         {% set current_type = form.destination_type if form else (route.destination_type if route else 'extension') %}
-        <select id="destination_type" name="destination_type">
+        <select id="destination_type" name="destination_type" onchange="onDestinationTypeChange(this.value)">
           <option value="extension" {% if current_type == 'extension' %}selected{% endif %}>Extension</option>
           <option value="ring_group" {% if current_type == 'ring_group' %}selected{% endif %}>Groupe de sonnerie</option>
           <option value="voicemail" {% if current_type == 'voicemail' %}selected{% endif %}>Messagerie vocale</option>
+          <option value="ivr" {% if current_type == 'ivr' %}selected{% endif %}>IVR (répertoire/accueil)</option>
         </select>
       </div>
       <div class="form-group">
@@ -46,9 +47,24 @@
           {% endfor %}
         </datalist>
         <div class="form-hint">Pour "Extension"/"Messagerie vocale" : un numéro d'extension. Pour "Groupe de
-          sonnerie" : le nom exact du groupe (voir la page Groupes de sonnerie).</div>
+          sonnerie" : le nom exact du groupe (voir la page Groupes de sonnerie). Pour "IVR" : ignoré, il n'y a
+          qu'un seul IVR (voir la page IVR pour son fallback et son délai).</div>
       </div>
     </div>
+
+    <script>
+      function onDestinationTypeChange(type) {
+        var input = document.getElementById('destination_value');
+        if (type === 'ivr') {
+          input.value = 'ivr';
+          input.readOnly = true;
+        } else {
+          input.readOnly = false;
+          if (input.value === 'ivr') input.value = '';
+        }
+      }
+      onDestinationTypeChange(document.getElementById('destination_type').value);
+    </script>
 
     <div class="form-hint" style="margin-bottom:8px">Horaires optionnels (laisser vide pour router en tout temps) :</div>
     <div class="form-row">

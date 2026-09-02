@@ -1,0 +1,54 @@
+{% extends "pages/base.html" %}
+{% block title %}IVR{% endblock %}
+{% block content %}
+<div class="section-header">
+  <div class="section-title">IVR (répertoire / accueil automatique)</div>
+</div>
+
+<div class="card" style="max-width:560px; margin-bottom:16px">
+  <div class="form-hint">
+    Un seul menu d'accueil, disponible comme destination "IVR" sur n'importe quelle route entrante :
+    <ul style="margin:8px 0 0 18px; padding:0">
+      <li>Si l'appelant connaît le numéro de poste, il peut le composer immédiatement.</li>
+      <li>Appuyer sur <strong>1</strong> ouvre le répertoire par nom (basé sur le nom affiché des extensions
+        avec messagerie vocale activée).</li>
+      <li>Sans action, l'appel bascule vers le fallback ci-dessous après le délai configuré.</li>
+    </ul>
+  </div>
+</div>
+
+<div class="card" style="max-width:560px">
+  {% if error %}<div class="form-error" style="margin-bottom:14px">{{ error }}</div>{% endif %}
+  <form method="post" action="/ivr">
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label" for="timeout_seconds">Délai avant fallback (secondes)</label>
+        <input type="number" id="timeout_seconds" name="timeout_seconds" min="3"
+               value="{{ form.timeout_seconds if form else ivr_settings.timeout_seconds }}">
+      </div>
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label" for="fallback_destination_type">Fallback (si aucune touche pressée)</label>
+        {% set current_fb = form.fallback_destination_type if form else ivr_settings.fallback_destination_type %}
+        <select id="fallback_destination_type" name="fallback_destination_type">
+          <option value="voicemail" {% if current_fb == 'voicemail' %}selected{% endif %}>Boîte vocale</option>
+          <option value="extension" {% if current_fb == 'extension' %}selected{% endif %}>Extension</option>
+          <option value="ring_group" {% if current_fb == 'ring_group' %}selected{% endif %}>Groupe de sonnerie</option>
+          <option value="hangup" {% if current_fb == 'hangup' %}selected{% endif %}>Raccrocher</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="fallback_destination_value">Valeur (numéro d'extension ou nom du groupe)</label>
+        <input type="text" id="fallback_destination_value" name="fallback_destination_value"
+               value="{{ form.fallback_destination_value if form else (ivr_settings.fallback_destination_value or '') }}">
+      </div>
+    </div>
+
+    <div class="form-actions">
+      <button type="submit" class="btn btn-primary">Enregistrer</button>
+    </div>
+  </form>
+</div>
+{% endblock %}
