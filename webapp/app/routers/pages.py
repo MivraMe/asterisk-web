@@ -1,4 +1,5 @@
 from datetime import date, datetime
+from pathlib import Path
 
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import RedirectResponse
@@ -8,6 +9,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import crud
 from app.ami_client import AMIError, ami
+from app.config import settings
+from app.config_generator import compute_directory_list
 from app.database import get_db
 from app.models import CDR, Trunk
 from app.routers.cdr import _apply_filters
@@ -28,7 +31,6 @@ from app.schemas import (
     VoicemailUpdate,
 )
 from app.security import read_session_token
-from app.config import settings
 from app.templating import templates
 
 router = APIRouter()
@@ -121,6 +123,7 @@ async def extension_new_submit(
     voicemail_enabled: str | None = Form(None),
     voicemail_pin: str = Form(""),
     voicemail_email: str = Form(""),
+    listed_in_directory: str | None = Form(None),
     follow_me_enabled: str | None = Form(None),
     follow_me_numbers: str = Form(""),
     follow_me_timeout: int = Form(20),
@@ -131,6 +134,7 @@ async def extension_new_submit(
         "extension": extension, "display_name": display_name, "context": context,
         "sip_password": sip_password, "voicemail_enabled": bool(voicemail_enabled),
         "voicemail_pin": voicemail_pin, "voicemail_email": voicemail_email,
+        "listed_in_directory": bool(listed_in_directory),
         "follow_me_enabled": bool(follow_me_enabled), "follow_me_numbers": _parse_dids(follow_me_numbers),
         "follow_me_timeout": follow_me_timeout, "follow_me_strategy": follow_me_strategy,
     }
@@ -160,6 +164,7 @@ async def extension_edit_submit(
     voicemail_enabled: str | None = Form(None),
     voicemail_pin: str = Form(""),
     voicemail_email: str = Form(""),
+    listed_in_directory: str | None = Form(None),
     follow_me_enabled: str | None = Form(None),
     follow_me_numbers: str = Form(""),
     follow_me_timeout: int = Form(20),
@@ -170,6 +175,7 @@ async def extension_edit_submit(
         "display_name": display_name, "context": context,
         "sip_password": sip_password or None, "voicemail_enabled": bool(voicemail_enabled),
         "voicemail_pin": voicemail_pin, "voicemail_email": voicemail_email,
+        "listed_in_directory": bool(listed_in_directory),
         "follow_me_enabled": bool(follow_me_enabled), "follow_me_numbers": _parse_dids(follow_me_numbers),
         "follow_me_timeout": follow_me_timeout, "follow_me_strategy": follow_me_strategy,
     }
@@ -358,7 +364,13 @@ async def ring_group_edit_submit(
 @router.get("/ivr")
 async def ivr_settings_page(request: Request, db: AsyncSession = Depends(get_db)):
     ivr_settings = await crud.get_ivr_settings(db)
-    return templates.TemplateResponse(request, "pages/ivr_settings.html", {"nav_active": "ivr", "ivr_settings": ivr_settings})
+    extensions = await crud.list_extensions(db)
+    directory_list = compute_directory_list(extensions)
+    greeting_path = Path(settings.asterisk_spool_dir) / "ivr-prompts" / "greeting.wav"
+    return templates.TemplateResponse(request, "pages/ivr_settings.html", {
+        "nav_active": "ivr", "ivr_settings": ivr_settings, "directory_list": directory_list,
+        "custom_greeting_configured": greeting_path.is_file(),
+    })
 
 
 @router.post("/ivr")

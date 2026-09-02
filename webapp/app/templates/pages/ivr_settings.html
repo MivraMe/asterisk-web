@@ -7,14 +7,51 @@
 
 <div class="card" style="max-width:560px; margin-bottom:16px">
   <div class="form-hint">
-    Un seul menu d'accueil, disponible comme destination "IVR" sur n'importe quelle route entrante :
+    <strong>Structure du menu</strong> — script à suivre si vous enregistrez votre propre message d'accueil
+    (voir la carte "Message d'accueil personnalisé" ci-dessous) :
     <ul style="margin:8px 0 0 18px; padding:0">
       <li>Si l'appelant connaît le numéro de poste, il peut le composer immédiatement.</li>
-      <li>Appuyer sur <strong>1</strong> ouvre le répertoire par nom (basé sur le nom affiché des extensions
-        avec messagerie vocale activée).</li>
-      <li>Sans action, l'appel bascule vers le fallback ci-dessous après le délai configuré.</li>
+      <li>Appuyer sur <strong>1</strong> ouvre le répertoire :
+        <ul style="margin:4px 0 0 18px; padding:0">
+          <li><strong>1</strong> = recherche par nom (épelé au clavier)</li>
+          <li><strong>2</strong> = liste parlée des postes ci-dessous</li>
+        </ul>
+      </li>
+      <li>Sans action, l'appel bascule vers le fallback configuré après {{ ivr_settings.timeout_seconds }} secondes.</li>
     </ul>
+    {% if directory_list %}
+    <div style="margin-top:10px">Liste parlée (option 1 → 2), dans l'ordre annoncé :</div>
+    <ul style="margin:4px 0 0 18px; padding:0">
+      {% for ext in directory_list %}
+      <li><strong>{{ loop.index }}</strong> = {{ ext.display_name or ext.extension }} (poste {{ ext.extension }})</li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <div style="margin-top:10px">Aucun poste éligible pour l'instant (messagerie vocale activée + "visible
+      dans le répertoire" cochée, voir la page Extensions).</div>
+    {% endif %}
   </div>
+</div>
+
+<div class="card" style="max-width:560px; margin-bottom:16px">
+  <div class="section-title" style="font-size:1rem; margin-bottom:8px">Message d'accueil personnalisé</div>
+  <div class="form-hint" style="margin-bottom:10px">
+    Composez <strong>*81</strong> depuis n'importe quel poste interne pour enregistrer votre propre message —
+    vous pouvez y expliquer vous-même ce que fait chaque touche (utilisez le script ci-dessus). Le message
+    est relu immédiatement pour confirmation, avec l'option de le réenregistrer avant de le sauvegarder.
+  </div>
+  {% if custom_greeting_configured %}
+  <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap">
+    <span class="badge badge-ok">Message personnalisé configuré</span>
+    <audio controls src="/api/ivr/greeting/audio" style="height:32px"></audio>
+    <button class="btn btn-danger btn-sm"
+            hx-delete="/api/ivr/greeting"
+            hx-on::after-request="if(event.detail.successful) window.location.reload()"
+            hx-confirm="Supprimer le message personnalisé et revenir au message par défaut ?">Supprimer</button>
+  </div>
+  {% else %}
+  <span class="badge badge-unknown">Aucun message personnalisé — message par défaut utilisé</span>
+  {% endif %}
 </div>
 
 <div class="card" style="max-width:560px">

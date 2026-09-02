@@ -13,7 +13,7 @@
   <div class="table-scroll">
     <table>
       <thead>
-        <tr><th>Extension</th><th>Nom</th><th>Contexte</th><th>Voicemail</th><th></th></tr>
+        <tr><th>Extension</th><th>Nom</th><th>Contexte</th><th>Voicemail</th><th>Répertoire IVR</th><th></th></tr>
       </thead>
       <tbody id="extensions-tbody">
         {% for ext in extensions %}
@@ -22,6 +22,7 @@
           <td>{{ ext.display_name or '—' }}</td>
           <td>{{ ext.context }}</td>
           <td>{% if ext.voicemail_enabled %}<span class="badge badge-ok">Activée</span>{% else %}<span class="badge badge-unknown">Désactivée</span>{% endif %}</td>
+          <td>{% if ext.voicemail_enabled and ext.listed_in_directory %}<span class="badge badge-ok">Visible</span>{% else %}<span class="badge badge-unknown">Non listée</span>{% endif %}</td>
           <td style="text-align:right; white-space:nowrap">
             <a class="btn btn-secondary btn-sm" href="/extensions/{{ ext.id }}/edit">Éditer</a>
             <button class="btn btn-danger btn-sm"
@@ -32,7 +33,7 @@
           </td>
         </tr>
         {% else %}
-        <tr><td colspan="5" class="empty-state">Aucune extension. Créez-en une pour commencer.</td></tr>
+        <tr><td colspan="6" class="empty-state">Aucune extension. Créez-en une pour commencer.</td></tr>
         {% endfor %}
       </tbody>
     </table>

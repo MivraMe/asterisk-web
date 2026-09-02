@@ -21,7 +21,7 @@ for f in pjsip.conf extensions.conf voicemail.conf; do
     fi
 done
 
-mkdir -p /var/spool/asterisk/voicemail /var/spool/asterisk/recording /var/spool/asterisk/monitor
+mkdir -p /var/spool/asterisk/voicemail /var/spool/asterisk/recording /var/spool/asterisk/monitor /var/spool/asterisk/ivr-prompts
 mkdir -p /var/log/asterisk /var/run/asterisk
 
 # manager.conf / cdr_pgsql.conf carry credentials from the environment —

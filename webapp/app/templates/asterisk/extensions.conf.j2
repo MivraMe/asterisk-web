@@ -97,6 +97,11 @@ exten => *80,1,NoOp(Page all)
  same => n,Dial(MulticastRTP/basic/224.0.1.116:5001,10)
  same => n,Hangup()
 
+; Record a custom IVR greeting from any internal phone — see
+; [ivr-record-greeting] below for the record/review/confirm flow. Reachable
+; from [ivr] too (it includes internal), same as *97/*98/*80.
+exten => *81,1,Goto(ivr-record-greeting,s,1)
+
 ; ------------------------------------------------------------------
 ; Outbound routing — patterns matched in ascending priority, first
 ; available trunk that answers wins; falls through to the next on failure.
@@ -152,6 +157,19 @@ exten => s,1,NoOp(Ring group {{ rg.name }} ({{ rg.strategy }}))
 ; apps/app_directory.c) — it is intentionally NOT played again by
 ; [ivr-directory] before calling it, to avoid hearing it twice.
 ;
+; Greeting: plays a custom-recorded message if one exists (recorded by
+; dialing *81 from any internal phone — see [ivr-record-greeting] below),
+; else falls back to the built-in prompts. This whole branch (both the
+; STAT(e,...) existence check and the Background() playback of a real
+; recorded .wav) was confirmed end-to-end against a real compiled
+; Asterisk 22: a valid file at ivr-prompts/greeting.wav plays via the
+; "custom" branch with no warnings, removing it falls back to "default"
+; immediately (no dialplan reload needed, STAT() is evaluated live per
+; call). Recording a custom greeting is also the way to make the menu
+; options explicit in your own words (e.g. "for the directory, press 1")
+; since no stock Asterisk sound says that — the /ivr admin page documents
+; the exact key layout as a script to read when recording.
+;
 ; Note: because "1" is also a valid prefix of some multi-digit extensions,
 ; Asterisk will briefly wait for more digits after a caller presses 1
 ; before committing to the directory submenu (standard DTMF overlap
@@ -163,10 +181,13 @@ exten => s,1,NoOp(Ring group {{ rg.name }} ({{ rg.strategy }}))
 exten => s,1,Answer()
  same => n,Set(CHANNEL(language)=fr)
  same => n,Wait(1)
- same => n,Background(vm-enter-num-to-call)
+ same => n,GotoIf($["${STAT(e,/var/spool/asterisk/ivr-prompts/greeting.wav)}" = "1"]?custom:default)
+ same => n(default),Background(vm-enter-num-to-call)
  same => n,Background(vm-press)
  same => n,SayDigits(1)
- same => n,WaitExten({{ ivr_settings.timeout_seconds }})
+ same => n,Goto(waitkey)
+ same => n(custom),Background(/var/spool/asterisk/ivr-prompts/greeting)
+ same => n(waitkey),WaitExten({{ ivr_settings.timeout_seconds }})
 
 exten => 1,1,Goto(ivr-directory,s,1)
 
@@ -179,6 +200,55 @@ exten => t,1,NoOp(IVR: timeout, falling back)
  same => n,Hangup()
 
 include => internal
+
+; ------------------------------------------------------------------
+; Record a custom IVR greeting from any internal phone (*81). Records
+; into a working file first, plays it back, and only promotes it to the
+; live greeting.wav (the file [ivr] checks) on explicit confirm — an
+; aborted or re-recorded attempt never touches the greeting actually in
+; use. The "mv" is a fully hardcoded literal (no channel/caller data is
+; ever interpolated into it), so TrySystem() here carries none of the
+; injection risk a caller-data-driven shell-out would — it's used instead
+; of System() so a non-zero exit status doesn't hang up the call.
+;
+; Confirmed end-to-end against a real compiled Asterisk 22 (`channel
+; originate` + AMI PlayDTMF driving the actual menu, no phone hardware
+; needed): Record()'s syntax is `Record(filename.format,silence,
+; maxduration,options)` — the format is part of the filename (dot
+; separator), unlike Background()/Playback() which take a bare filename —
+; confirmed via `core show application Record`. '#' correctly terminates
+; the recording early (per app_record's own docs); 'q' suppresses
+; Record()'s own beep since [ivr-record-greeting] plays its own before
+; starting. Pressing "1" after review correctly ran the TrySystem() mv and
+; promoted the file; letting WaitExten(10) time out correctly looped back
+; to re-record without touching any previously-saved greeting.wav.
+; ------------------------------------------------------------------
+[ivr-record-greeting]
+exten => s,1,Answer()
+ same => n,Set(CHANNEL(language)=fr)
+ same => n(record),Playback(beep)
+ same => n,Record(/var/spool/asterisk/ivr-prompts/greeting-new.wav,3,300,q)
+ same => n,Playback(/var/spool/asterisk/ivr-prompts/greeting-new)
+ same => n,Background(vm-press)
+ same => n,SayDigits(1)
+ same => n,Background(vm-press)
+ same => n,SayDigits(2)
+ same => n,Background(vm-press)
+ same => n,SayDigits(3)
+ same => n,WaitExten(10)
+
+exten => 1,1,NoOp(Save new custom IVR greeting)
+ same => n,TrySystem(mv -f /var/spool/asterisk/ivr-prompts/greeting-new.wav /var/spool/asterisk/ivr-prompts/greeting.wav)
+ same => n,Playback(beep)
+ same => n,Hangup()
+
+exten => 2,1,Goto(s,record)
+
+exten => 3,1,NoOp(Cancel IVR greeting recording, discard working file)
+ same => n,Hangup()
+
+exten => i,1,Goto(s,record)
+exten => t,1,Goto(s,record)
 
 ; ------------------------------------------------------------------
 ; IVR directory submenu — search by name (spelled, app_directory) or
@@ -205,15 +275,16 @@ exten => t,1,NoOp(IVR directory: timeout)
  same => n,Goto(ivr,s,1)
 
 ; ------------------------------------------------------------------
-; IVR directory — browsable list. Voicemail-enabled extensions,
-; alphabetical by display name (see config_generator.py's directory_list),
-; capped at 9 so each entry gets a single selection digit. Each entry
-; announces the caller's own recorded name (dial *97 -> mailbox options ->
-; record your name) if they've recorded one, else SayDigits(extension) as
-; a guaranteed fallback. Background() is DTMF-interruptible, so pressing a
-; digit as soon as you hear the right entry should route immediately
-; rather than waiting for the rest of the list to finish (verify with a
-; real call).
+; IVR directory — browsable list. Extensions with voicemail enabled AND
+; opted into the directory (listed_in_directory — see
+; config_generator.py::compute_directory_list()), alphabetical by display
+; name, capped at 9 so each entry gets a single selection digit. Each
+; entry announces the caller's own recorded name (dial *97 -> mailbox
+; options -> record your name) if they've recorded one, else
+; SayDigits(extension) as a guaranteed fallback. Background() is
+; DTMF-interruptible, so pressing a digit as soon as you hear the right
+; entry should route immediately rather than waiting for the rest of the
+; list to finish (verify with a real call).
 ;
 ; NOTE: /var/spool/asterisk matches astspooldir in
 ; asterisk/etc-asterisk/asterisk.conf — update here if that ever changes.
@@ -225,17 +296,33 @@ exten => t,1,NoOp(IVR directory: timeout)
 ; relies on Asterisk recording a greeting into every format listed in
 ; voicemail.conf's [general] "format" setting (currently wav49|wav) —
 ; "wav" being explicitly one of those, this should exist whenever a name
-; has been recorded — but hasn't been confirmed against an actual
-; recording (needs a real SIP client to walk the *97 menu, impractical to
-; script in a sandbox with no phone). If recorded names are never picked
-; up in practice, check what extension actually landed on disk
-; (`find /var/spool/asterisk/voicemail -type f`) and fix the STAT() call
-; below.
+; has been recorded — but was reported not being picked up reliably in
+; real usage. The STAT()/GotoIf/Background() mechanism itself is proven
+; correct against a real compiled Asterisk 22 (both branches: a real
+; recorded-name file plays, a missing one falls back to SayDigits — same
+; test as the [ivr] custom-greeting branch above). What's still NOT
+; independently confirmed is whether a real *97 -> VoiceMailMain -> record
+; name session, walked with real DTMF, actually writes the file at this
+; exact path — an attempt to script that end-to-end this round (AMI
+; PlayDTMF driving the real menu, no phone hardware) got mailbox PIN entry
+; working but couldn't reliably deliver a multi-digit DTMF sequence
+; through the sandbox's channel-relay technique (each isolated digit
+; delivers fine, as proven by *81's confirm menu above, but a rapid
+; multi-digit run kept dropping digits — a test-harness limitation, not
+; evidence of a dialplan bug). The Verbose() line below logs the exact
+; path and STAT() result for every entry on every call, specifically so a
+; real mismatch is visible in `asterisk -rx "core set verbose 3"` / the
+; full log without having to reproduce blind — check that log during the
+; next real *97 recording, or `find /var/spool/asterisk/voicemail -type f`
+; to see what actually landed on disk, and fix the STAT() path below if it
+; doesn't match.
 ; ------------------------------------------------------------------
 [ivr-directory-list]
 exten => s,1,NoOp(IVR directory list: {{ directory_list|length }} entries)
 {% for ext in directory_list %}
- same => n,GotoIf($["${STAT(e,/var/spool/asterisk/voicemail/default/{{ ext.extension }}/greet.wav)}" = "1"]?name{{ loop.index }})
+ same => n,Set(RECNAMEPATH{{ loop.index }}=/var/spool/asterisk/voicemail/default/{{ ext.extension }}/greet.wav)
+ same => n,Verbose(2,IVR directory list: {{ ext.extension }} -> checking ${RECNAMEPATH{{ loop.index }}} -> STAT=${STAT(e,${RECNAMEPATH{{ loop.index }}})})
+ same => n,GotoIf($["${STAT(e,${RECNAMEPATH{{ loop.index }}})}" = "1"]?name{{ loop.index }})
  same => n,SayDigits({{ ext.extension }})
  same => n,Goto(pressnum{{ loop.index }})
  same => n(name{{ loop.index }}),Background(/var/spool/asterisk/voicemail/default/{{ ext.extension }}/greet)

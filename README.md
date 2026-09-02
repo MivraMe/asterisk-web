@@ -173,11 +173,13 @@ anglais pour tout ce que le paquet français ne couvre pas.
     `voicemail.conf` — seules les extensions avec messagerie vocale
     activée y apparaissent) ;
   - **2** = liste parlée, plafonnée à 9 entrées (une par chiffre),
-    triée alphabétiquement par nom. Chaque entrée annonce le nom
-    enregistré par la personne (`*97` → options de la boîte vocale →
-    enregistrer son nom) si disponible, sinon le numéro de poste en
-    secours ; appuyer sur le chiffre annoncé compose directement cette
-    extension ;
+    triée alphabétiquement par nom — inclut les extensions avec messagerie
+    vocale activée **et** la case "visible dans le répertoire" cochée
+    (page *Extensions*, indépendant l'un de l'autre). Chaque entrée
+    annonce le nom enregistré par la personne (`*97` → options de la
+    boîte vocale → enregistrer son nom) si disponible, sinon le numéro de
+    poste en secours ; appuyer sur le chiffre annoncé compose directement
+    cette extension ;
 - sans touche pressée dans le délai configuré, l'appel bascule vers le
   fallback choisi (extension, groupe de sonnerie, boîte vocale ou
   raccrocher).
@@ -186,9 +188,22 @@ Comme "1" est aussi un préfixe valide de certaines extensions à plusieurs
 chiffres, Asterisk attend brièvement d'autres chiffres après un "1" avant
 de trancher (comportement standard de collecte DTMF, pas un bug — le même
 compromis existe dans n'importe quel IVR qui réutilise "1" comme option de
-menu). Aucun enregistrement d'accueil personnalisé n'est pris en charge
-pour l'instant (utilise les prompts génériques d'Asterisk : `dir-welcome`,
-`vm-enter-num-to-call`, `vm-press`).
+menu).
+
+### Message d'accueil personnalisé
+
+Composez **\*81** depuis n'importe quel poste interne pour enregistrer votre
+propre message d'accueil, à la place des prompts génériques d'Asterisk
+(`vm-enter-num-to-call`, `vm-press`). Le message est relu immédiatement
+pour confirmation, avec une option pour le réenregistrer avant de le
+sauvegarder — un essai abandonné ou raccroché en cours de route ne touche
+jamais le message actuellement actif. La page *IVR* affiche si un message
+personnalisé est configuré (avec un lecteur audio de prévisualisation) et
+permet de le supprimer pour revenir au message par défaut. La page *IVR*
+affiche aussi la structure complète du menu (quelle touche fait quoi, et
+qui est dans la liste parlée) — utile comme script si vous enregistrez
+votre propre message. `*81` est joignable comme `*97`/`*98`/`*80`, sans
+protection par NIP.
 
 ## Sécurité
 

@@ -53,6 +53,16 @@
 
     <div class="form-group">
       <label class="form-label">
+        <input type="checkbox" name="listed_in_directory" value="true" style="width:auto"
+               {% if (form.listed_in_directory if form else (ext.listed_in_directory if ext else true)) %}checked{% endif %}>
+        Visible dans le répertoire IVR (liste parlée)
+      </label>
+      <div class="form-hint">S'ajoute à la messagerie vocale activée ci-dessus — les deux doivent être cochées
+        pour que ce poste apparaisse dans la liste parlée du répertoire (option "2" du menu répertoire).</div>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">
         <input type="checkbox" name="follow_me_enabled" value="true" style="width:auto"
                {% if (form.follow_me_enabled if form else (ext.follow_me_enabled if ext else false)) %}checked{% endif %}>
         Transfert / follow-me activé

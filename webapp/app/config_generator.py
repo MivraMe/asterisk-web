@@ -41,6 +41,27 @@ def _shuffle_filter(seq):
 _env.filters["shuffle"] = _shuffle_filter
 
 
+def compute_directory_list(extensions) -> list[Extension]:
+    """IVR "browse a list" mode — extensions with voicemail enabled AND
+    opted into the directory (listed_in_directory), alphabetical by display
+    name (a caller scanning a spoken list wants to recognize a name, not
+    stumble onto an extension number), capped at 9 so each entry gets a
+    single selection digit (1-9). Shared by the dialplan generator and the
+    /ivr admin page (which shows the same list as a key-map reference)."""
+    directory_pool = sorted(
+        (e for e in extensions if e.voicemail_enabled and e.listed_in_directory),
+        key=lambda e: (e.display_name or e.extension).lower(),
+    )
+    directory_list = directory_pool[:9]
+    if len(directory_pool) > 9:
+        logger.warning(
+            "IVR directory list has %d eligible extensions, only the first 9 "
+            "(alphabetically) are reachable by the browse-list menu: %s",
+            len(directory_pool), ", ".join(e.extension for e in directory_pool[9:]),
+        )
+    return directory_list
+
+
 async def _load_data(db: AsyncSession) -> dict:
     extensions = (await db.execute(select(Extension).order_by(Extension.extension))).scalars().all()
     trunks = (await db.execute(select(Trunk).order_by(Trunk.name))).scalars().all()
@@ -57,21 +78,7 @@ async def _load_data(db: AsyncSession) -> dict:
         await db.execute(select(OutboundRoute).order_by(OutboundRoute.pattern, OutboundRoute.priority))
     ).scalars().all()
 
-    # IVR "browse a list" mode — voicemail-enabled extensions, alphabetical
-    # by display name (a caller scanning a spoken list wants to recognize a
-    # name, not stumble onto an extension number), capped at 9 so each
-    # entry gets a single selection digit (1-9).
-    directory_pool = sorted(
-        (e for e in extensions if e.voicemail_enabled),
-        key=lambda e: (e.display_name or e.extension).lower(),
-    )
-    directory_list = directory_pool[:9]
-    if len(directory_pool) > 9:
-        logger.warning(
-            "IVR directory list has %d voicemail-enabled extensions, only the first 9 "
-            "(alphabetically) are reachable by the browse-list menu: %s",
-            len(directory_pool), ", ".join(e.extension for e in directory_pool[9:]),
-        )
+    directory_list = compute_directory_list(extensions)
 
     trunk_by_id = {t.id: t for t in trunks}
     outbound_by_pattern = []

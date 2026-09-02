@@ -35,6 +35,9 @@ class Extension(Base):
     voicemail_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
     voicemail_pin: Mapped[str | None] = mapped_column(String(10))
     voicemail_email: Mapped[str | None] = mapped_column(Text)
+    # Whether this extension can appear in the IVR's spoken directory list
+    # (independent of voicemail_enabled — both must be true to be listed).
+    listed_in_directory: Mapped[bool] = mapped_column(Boolean, default=True)
     context: Mapped[str] = mapped_column(String(50), default="internal")
     # Follow-me / call forwarding — external numbers rung (in addition to
     # the desk phone) before falling back to voicemail. follow_me_timeout is

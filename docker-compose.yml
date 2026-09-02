@@ -48,6 +48,17 @@ services:
       # files, then tells Asterisk (over AMI) to reload them.
       - ./data/asterisk-etc:/etc/asterisk
       - ./data/asterisk-spool:/var/spool/asterisk:ro
+      # Narrow read-write exception to the :ro mount above, for the IVR
+      # custom-greeting feature's "delete to revert to default" button
+      # (webapp needs to remove ivr-prompts/greeting.wav; everything else
+      # under the spool — voicemail, recordings — stays read-only from
+      # webapp). Same host directory tree as the mount above, just a more
+      # specific path — both containers see the exact same files, this
+      # isn't a second copy. Docker applies the more specific mount point
+      # on top of the broader one; verify with `docker compose exec webapp
+      # touch /var/spool/asterisk/ivr-prompts/probe` (should succeed) vs.
+      # `touch /var/spool/asterisk/voicemail/probe` (should still fail).
+      - ./data/asterisk-spool/ivr-prompts:/var/spool/asterisk/ivr-prompts
     environment:
       DATABASE_URL: postgresql+asyncpg://${DB_USER:-asterisk}:${DB_PASSWORD:?DB_PASSWORD is required}@db:5432/${DB_NAME:-asterisk}
       # webapp stays on the Docker bridge network while asterisk is

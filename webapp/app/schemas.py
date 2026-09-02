@@ -36,6 +36,7 @@ class ExtensionBase(BaseModel):
     voicemail_enabled: bool = True
     voicemail_pin: str | None = None
     voicemail_email: str | None = None
+    listed_in_directory: bool = True
     # Follow-me / call forwarding.
     follow_me_enabled: bool = False
     follow_me_numbers: list[str] = Field(default_factory=list)
@@ -54,6 +55,7 @@ class ExtensionUpdate(BaseModel):
     voicemail_enabled: bool | None = None
     voicemail_pin: str | None = None
     voicemail_email: str | None = None
+    listed_in_directory: bool | None = None
     follow_me_enabled: bool | None = None
     follow_me_numbers: list[str] | None = None
     follow_me_timeout: int | None = None
@@ -153,6 +155,11 @@ class IvrSettingsOut(BaseModel):
     timeout_seconds: int
     fallback_destination_type: FallbackDestinationType
     fallback_destination_value: str | None = None
+
+
+class IvrGreetingStatus(BaseModel):
+    configured: bool
+    recorded_at: datetime | None = None
 
 
 # ------------------------------------------------------------------ #
